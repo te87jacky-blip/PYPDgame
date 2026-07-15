@@ -32,15 +32,15 @@
 .podium-card.rank{font-size:32px;margin-bottom:4px}
 .podium-card.name{font-size:16px;margin-bottom:4px}
 .podium-card.pts{font-size:14px;opacity:.9}
-.match{background:#334155;padding:16px;border-radius:12px;margin:10px 0}
-.match-vs{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px}
-.match-name{flex:1;text-align:center;font-weight:700;font-size:16px}
-.vs{color:#94a3b8;font-size:14px;font-weight:600}
-.score-panel{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.score-side{display:flex;gap:4px;flex-wrap:wrap;width:45%;justify-content:center}
-.score-btn{width:32px;height:32px;border-radius:6px;background:#475569;font-weight:700;font-size:14px;border:2px solid transparent}
-.score-btn.active{border:2px solid #22c55e;background:#1e293b;box-shadow:0 0 8px #22c55e55;color:#22c55e}
+.match{background:#334155;padding:18px;border-radius:14px;margin:12px 0}
+.match-header{text-align:center;margin-bottom:14px}
+.match-name{font-size:18px;font-weight:700;letter-spacing:0.5px}
+.score-wrap{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.score-side{display:flex;gap:5px;flex-wrap:wrap;width:40%;justify-content:center}
+.score-btn{width:42px;height:42px;border-radius:8px;background:#475569;font-weight:800;font-size:18px;border:2px solid transparent;text-align:center;display:flex;align-items:center;justify-content:center}
+.score-btn.active{border:2px solid #22c55e;background:#0f172a;box-shadow:0 0 10px #22c55e66;color:#22c55e}
 .score-btn:active{background:#3b82f6;color:#fff}
+.vs{color:#94a3b8;font-size:14px;font-weight:600}
 .row{display:flex;gap:8px;align-items:center}
 .row input{flex:1}
 .qr-wrap{display:flex;justify-content:center;margin:12px 0}
@@ -201,12 +201,10 @@ function renderSwissMatches(){
   document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
   document.getElementById('matches').innerHTML = state.currentMatches.map((m,i)=>
     `<div class="match">
-      <div class="match-vs">
-        <span class="match-name">${m.p1}</span>
-        <span class="vs">VS</span>
-        <span class="match-name">${m.p2}</span>
+      <div class="match-header">
+        <div class="match-name">${m.p1} VS ${m.p2}</div>
       </div>
-      <div class="score-panel">
+      <div class="score-wrap">
         <div class="score-side">${[0,1,2,3,4,5,6].map(n=>`<button class="score-btn ${m.s1===n?'active':''}" onclick="setScore(${i},0,${n})">${n}</button>`).join('')}</div>
         <div class="score-side">${[0,1,2,3,4,5,6].map(n=>`<button class="score-btn ${m.s2===n?'active':''}" onclick="setScore(${i},1,${n})">${n}</button>`).join('')}</div>
       </div>
