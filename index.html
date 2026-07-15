@@ -32,14 +32,15 @@
 .podium-card.rank{font-size:32px;margin-bottom:4px}
 .podium-card.name{font-size:16px;margin-bottom:4px}
 .podium-card.pts{font-size:14px;opacity:.9}
-.match{background:#334155;padding:12px;border-radius:8px;margin:8px 0}
-.score-row{display:flex;justify-content:space-between;align-items:center;margin:8px 0;gap:8px}
-.score-name{flex:1;font-weight:600}
-.score-btns{display:flex;gap:4px}
-.score-btn{background:#475569;width:36px;height:36px;border-radius:6px;font-weight:700;font-size:14px}
-.score-btn:active{background:#3b82f6}
-.score-show{width:40px;text-align:center;font-weight:700;color:#facc15}
-.vs{color:#94a3b8;font-size:14px}
+.match{background:#334155;padding:16px;border-radius:12px;margin:10px 0}
+.match-vs{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px}
+.match-name{flex:1;text-align:center;font-weight:700;font-size:16px}
+.vs{color:#94a3b8;font-size:14px;font-weight:600}
+.score-panel{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.score-side{display:flex;gap:4px;flex-wrap:wrap;width:45%;justify-content:center}
+.score-btn{width:32px;height:32px;border-radius:6px;background:#475569;font-weight:700;font-size:14px;border:2px solid transparent}
+.score-btn.active{border:2px solid #22c55e;background:#1e293b;box-shadow:0 0 8px #22c55e55;color:#22c55e}
+.score-btn:active{background:#3b82f6;color:#fff}
 .row{display:flex;gap:8px;align-items:center}
 .row input{flex:1}
 .qr-wrap{display:flex;justify-content:center;margin:12px 0}
@@ -200,28 +201,22 @@ function renderSwissMatches(){
   document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
   document.getElementById('matches').innerHTML = state.currentMatches.map((m,i)=>
     `<div class="match">
-      <div class="score-row">
-        <span class="score-name">${m.p1}</span>
-        <div class="score-btns">
-          ${[0,1,2,3,4,5,6].map(n=>`<button class="score-btn" onclick="setScore(${i},0,${n})">${n}</button>`).join('')}
-        </div>
-        <span class="score-show" id="s${i}0">${m.s1}</span>
+      <div class="match-vs">
+        <span class="match-name">${m.p1}</span>
+        <span class="vs">VS</span>
+        <span class="match-name">${m.p2}</span>
       </div>
-      <div class="score-row">
-        <span class="score-name">${m.p2}</span>
-        <div class="score-btns">
-          ${[0,1,2,3,4,5,6].map(n=>`<button class="score-btn" onclick="setScore(${i},1,${n})">${n}</button>`).join('')}
-        </div>
-        <span class="score-show" id="s${i}1">${m.s2}</span>
+      <div class="score-panel">
+        <div class="score-side">${[0,1,2,3,4,5,6].map(n=>`<button class="score-btn ${m.s1===n?'active':''}" onclick="setScore(${i},0,${n})">${n}</button>`).join('')}</div>
+        <div class="score-side">${[0,1,2,3,4,5,6].map(n=>`<button class="score-btn ${m.s2===n?'active':''}" onclick="setScore(${i},1,${n})">${n}</button>`).join('')}</div>
       </div>
-      <div class="pts">先累積4分者獲勝</div>
     </div>`
   ).join('');
 }
 
 function setScore(i,side,val){
   state.currentMatches[i][side===0?'s1':'s2'] = val;
-  document.getElementById(`s${i}${side}`).textContent = val;
+  renderSwissMatches();
   saveState();
 }
 
