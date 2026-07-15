@@ -24,24 +24,27 @@
 .player-stat{font-size:16px;color:#facc15;font-weight:700;letter-spacing:0.3px}
 .player-btns{display:flex;gap:6px}
 .player-btns button{width:auto;padding:6px 12px;font-size:14px;font-weight:600}
+.podium{display:flex;justify-content:center;align-items:end;gap:8px;margin:16px 0}
+.podium-card{width:30%;padding:12px;border-radius:12px;text-align:center;font-weight:700}
+.podium-card.gold{background:linear-gradient(180deg,#ffd700,#f4c430);color:#000}
+.podium-card.silver{background:linear-gradient(180deg,#e8e8e8,#c0c0c0);color:#000}
+.podium-card.bronze{background:linear-gradient(180deg,#cd7f32,#b8860b);color:#fff}
+.podium-card.rank{font-size:32px;margin-bottom:4px}
+.podium-card.name{font-size:16px;margin-bottom:4px}
+.podium-card.pts{font-size:14px;opacity:.9}
 .match{background:#334155;padding:12px;border-radius:8px;margin:8px 0}
-.score-row{display:grid;grid-template-columns:1fr 50px 1fr;gap:8px;align-items:center;margin:8px 0}
-.vs{color:#94a3b8;font-size:14px;text-align:center}
-.pts{font-size:12px;color:#94a3b8;text-align:center;margin-top:4px}
+.score-row{display:flex;justify-content:space-between;align-items:center;margin:8px 0;gap:8px}
+.score-name{flex:1;font-weight:600}
+.score-btns{display:flex;gap:4px}
+.score-btn{background:#475569;width:36px;height:36px;border-radius:6px;font-weight:700;font-size:14px}
+.score-btn:active{background:#3b82f6}
+.score-show{width:40px;text-align:center;font-weight:700;color:#facc15}
+.vs{color:#94a3b8;font-size:14px}
 .row{display:flex;gap:8px;align-items:center}
 .row input{flex:1}
 .qr-wrap{display:flex;justify-content:center;margin:12px 0}
 .qr{padding:8px;background:#fff;border-radius:8px}
 .loading{color:#94a3b8;text-align:center;padding:20px}
-.bracket{display:flex;gap:16px;overflow-x:auto;padding:12px 0}
-.bracket-round{display:flex;flex-direction:column;gap:12px;min-width:220px}
-.bracket-match{background:#334155;padding:10px;border-radius:8px;border:2px solid #475569;transition:all 0.2s}
-.bracket-match.winner{border:2px solid #22c55e!important;box-shadow:0 0 10px #22c55e66}
-.bracket-player{padding:10px 12px;border-radius:6px;margin:4px 0;background:#1e293b;text-align:center;font-weight:600;transition:all 0.2s}
-.bracket-player.loser{opacity:0.35;text-decoration:line-through}
-.bracket-player.bye{background:#0f172a;border:1px dashed #475569;color:#22c55e}
-.bracket-player.clickable{cursor:pointer}
-.bracket-player.clickable:hover{background:#3b82f6;color:#fff}
 </style>
 </head>
 <body>
@@ -75,11 +78,6 @@
   <button onclick="nextRound()">提交本輪 → 下一輪</button>
 </div>
 
-<div class="card" id="bracketCard" style="display:none">
-  <h2>單淘汰賽程</h2>
-  <div id="bracket" class="bracket"></div>
-</div>
-
 <div class="card" id="podiumCard" style="display:none">
   <h2>🏅 決賽排名</h2>
   <div id="podium" class="podium"></div>
@@ -93,7 +91,7 @@
 
 <script>
 const ROOM_ID = location.pathname.split('/').pop() || 'default';
-let state = {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 賽事系統',bgUrl:'',mode:'swiss',bracket:[],started:false,currentMatches:[]};
+let state = {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 賽事系統',bgUrl:'',mode:'swiss',started:false,currentMatches:[]};
 
 async function loadState(){
   try{
@@ -134,14 +132,10 @@ function renderPlayers(){
   ).join('') || '<div class="loading">還沒人報名</div>';
 
   const swissFinished = state.mode==='swiss' && state.round > state.totalRounds;
-  const singleFinished = state.mode==='single' && state.bracket.length>0 && state.bracket[state.bracket.length-1][0]?.w;
-  const finished = swissFinished || singleFinished;
-
-  document.getElementById('startBtn').disabled = state.players.length<4 || state.started || finished;
-  document.getElementById('startBtn').textContent = finished?'查看排名':state.mode==='swiss'?`開始第${state.round+1}輪`:'開始比賽';
+  document.getElementById('startBtn').disabled = state.players.length<4 || state.started || swissFinished;
+  document.getElementById('startBtn').textContent = swissFinished?'查看排名':`開始第${state.round+1}輪`;
 
   if(state.mode==='swiss' && state.round>0 && state.started &&!swissFinished) renderSwissMatches();
-  if(state.mode==='single' && state.started) renderBracket();
   if(swissFinished) showPodium();
   genQR();
 }
@@ -163,10 +157,9 @@ async function delPlayer(i){
 async function resetTournament(){
   if(confirm('確定重開賽程？所有成績會清空')){
     state.players.forEach(p=>{p.total=0;p.win=0;p.lose=0;p.buchholz=0;p.opponents=[];p.alive=true});
-    state.round=0; state.started=false; state.bracket=[]; state.currentMatches=[];
+    state.round=0; state.started=false; state.currentMatches=[];
     await saveState(); renderPlayers();
     document.getElementById('matchCard').style.display='none';
-    document.getElementById('bracketCard').style.display='none';
     document.getElementById('podiumCard').style.display='none';
   }
 }
@@ -174,12 +167,6 @@ async function changeRounds(){state.totalRounds=parseInt(document.getElementById
 async function changeMode(){state.mode=document.getElementById('mode').value;await saveState();}
 
 async function startTournament(){
-  if(state.mode==='swiss') return startSwiss();
-  if(state.mode==='single') return startSingle();
-}
-
-// 瑞士制 - 你的版本完全保留
-async function startSwiss(){
   state.started=true;
   state.round=1;
   generateSwissMatches();
@@ -214,28 +201,33 @@ function renderSwissMatches(){
   document.getElementById('matches').innerHTML = state.currentMatches.map((m,i)=>
     `<div class="match">
       <div class="score-row">
-        <span>${m.p1}</span><span class="vs">VS</span><span>${m.p2}</span>
-        <input id="s${i}0" type="number" min="0" max="6" value="${m.s1}" placeholder="0-6" oninput="updateScore(${i},0,this.value)">
-        <span class="vs">分</span>
-        <input id="s${i}1" type="number" min="0" max="6" value="${m.s2}" placeholder="0-6" oninput="updateScore(${i},1,this.value)">
+        <span class="score-name">${m.p1}</span>
+        <div class="score-btns">
+          ${[0,1,2,3,4,5,6].map(n=>`<button class="score-btn" onclick="setScore(${i},0,${n})">${n}</button>`).join('')}
+        </div>
+        <span class="score-show" id="s${i}0">${m.s1}</span>
       </div>
-      <div class="pts">輸入該場得分 0-6，先累積4分者獲勝</div>
+      <div class="score-row">
+        <span class="score-name">${m.p2}</span>
+        <div class="score-btns">
+          ${[0,1,2,3,4,5,6].map(n=>`<button class="score-btn" onclick="setScore(${i},1,${n})">${n}</button>`).join('')}
+        </div>
+        <span class="score-show" id="s${i}1">${m.s2}</span>
+      </div>
+      <div class="pts">先累積4分者獲勝</div>
     </div>`
   ).join('');
 }
 
-function updateScore(i,side,val){
-  const num = Math.min(6,Math.max(0,parseInt(val)||0));
-  if(side===0) state.currentMatches[i].s1 = num;
-  else state.currentMatches[i].s2 = num;
+function setScore(i,side,val){
+  state.currentMatches[i][side===0?'s1':'s2'] = val;
+  document.getElementById(`s${i}${side}`).textContent = val;
   saveState();
 }
 
 async function nextRound(){
-  if(state.round>=state.totalRounds) return;
   state.currentMatches.forEach(m=>{
-    const s0=Math.min(6,Math.max(0,m.s1||0));
-    const s1=Math.min(6,Math.max(0,m.s2||0));
+    const s0=m.s1||0, s1=m.s2||0;
     if(s0||s1){
       const p1 = state.players.find(p=>p.name===m.p1);
       const p2 = state.players.find(p=>p.name===m.p2);
@@ -267,85 +259,6 @@ function showPodium(){
     ${top3[0]?`<div class="podium-card gold"><div class="rank">🥇</div><div class="name">${top3[0].name}</div><div class="pts">${top3[0].win}勝 ${top3[0].lose}敗 ${top3[0].total}分</div></div>`:''}
     ${top3[2]?`<div class="podium-card bronze"><div class="rank">🥉</div><div class="name">${top3[2].name}</div><div class="pts">${top3[2].win}勝 ${top3[2].lose}敗 ${top3[2].total}分</div></div>`:''}
   `;
-}
-
-// 單淘汰 - 修綠框
-async function startSingle(){
-  let alive = shuffle(state.players.filter(p=>p.alive).map(p=>p.name));
-  const bye = alive.length%2===1? alive.pop() : null;
-
-  state.bracket = [];
-  let round1=[];
-  for(let i=0;i<alive.length;i+=2){
-    round1.push({p1:alive[i],p2:alive[i+1],w:null});
-  }
-  state.bracket.push(round1);
-
-  let nextLen = Math.ceil(alive.length/2);
-  while(nextLen>1){
-    state.bracket.push(Array(nextLen).fill(null).map(()=>({p1:null,p2:null,w:null})));
-    nextLen = Math.ceil(nextLen/2);
-  }
-  state.bracket.push([{p1:null,p2:null,w:null}]);
-
-  if(bye && state.bracket[1][0]){
-    if(!state.bracket[1][0].p1) state.bracket[1][0].p1 = bye;
-    else state.bracket[1][0].p2 = bye;
-  }
-
-  state.started=true;
-  await saveState(); renderBracket();
-  document.getElementById('bracketCard').style.display='block';
-}
-
-function renderBracket(){
-  document.getElementById('bracketCard').style.display='block';
-  const html = state.bracket.map((round,rIdx)=>{
-    if(round.length===0) return '';
-    return `
-      <div class="bracket-round">
-        ${round.map((m,mIdx)=>renderBracketMatch(m,rIdx,mIdx)).join('')}
-      </div>
-    `
-  }).filter(h=>h).join('');
-  document.getElementById('bracket').innerHTML = html;
-}
-
-function renderBracketMatch(m,rIdx,mIdx){
-  const p1 = m.p1 || '';
-  const p2 = m.p2 || '';
-  const w = m.w; // 勝者名字
-  const canClick =!w && p1 && p2;
-  if(!p1 &&!p2) return '';
-
-  const p1Class = w===p1? 'winner' : w===p2? 'loser' : '';
-  const p2Class = w===p2? 'winner' : w===p1? 'loser' : '';
-
-  return `<div class="bracket-match ${w?'winner':''}">
-    <div class="bracket-player ${p1Class} ${canClick?'clickable':''}" onclick="${canClick?`setWinner(${rIdx},${mIdx},'${p1}')`:''}">${p1}</div>
-    <div class="bracket-player ${p2Class} ${canClick?'clickable':''}" onclick="${canClick?`setWinner(${rIdx},${mIdx},'${p2}')`:''}">${p2}</div>
-  </div>`
-}
-
-async function setWinner(rIdx,mIdx,winner){
-  const m = state.bracket[rIdx][mIdx]; // 修正：要取到具體那場
-  if(m.w) return;
-  m.w = winner;
-
-  const nextR = rIdx+1;
-  if(state.bracket[nextR] && state.bracket[nextR][Math.floor(mIdx/2)]){
-    const nextM = state.bracket[nextR][Math.floor(mIdx/2)];
-    if(mIdx%2===0) nextM.p1 = winner; else nextM.p2 = winner;
-  }
-  await saveState(); renderBracket();
-
-  const final = state.bracket[state.bracket.length-1][0];
-  if(final && final.w){
-    document.getElementById('podiumCard').style.display='block';
-    document.getElementById('podium').innerHTML = `
-      <div class="podium-card gold"><div class="rank">🥇</div><div class="name">${final.w}</div><div class="pts">冠軍</div></div>
-    `;
-  }
 }
 
 function genQR(){
