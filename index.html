@@ -141,13 +141,17 @@ function renderPlayers(){
     </div>`
   ).join('') || '<div class="loading">還沒人報名</div>';
 
-  const finished = state.mode==='swiss'? state.round>=state.totalRounds : state.bracket.length>0 && state.bracket[state.bracket.length-1][0]?.w;
+  // 關鍵：瑞士制是 state.round > state.totalRounds 才算結束
+  const swissFinished = state.mode==='swiss' && state.round > state.totalRounds;
+  const singleFinished = state.mode==='single' && state.bracket.length>0 && state.bracket[state.bracket.length-1][0]?.w;
+  const finished = swissFinished || singleFinished;
+
   document.getElementById('startBtn').disabled = state.players.length<4 || state.started || finished;
   document.getElementById('startBtn').textContent = finished?'查看排名':state.mode==='swiss'?`開始第${state.round+1}輪`:'開始比賽';
 
-  if(state.mode==='swiss' && state.round>0 && state.started &&!finished) renderSwissMatches();
+  if(state.mode==='swiss' && state.round>0 && state.started &&!swissFinished) renderSwissMatches();
   if(state.mode==='single' && state.started) renderBracket();
-  if(finished && state.mode==='swiss') showPodium();
+  if(swissFinished) showPodium();
   genQR();
 }
 
@@ -237,9 +241,6 @@ function updateScore(i,side,val){
 }
 
 async function nextRound(){
-  // 超過輪數就擋住
-  if(state.round>=state.totalRounds) return;
-
   state.currentMatches.forEach(m=>{
     const s0=Math.min(6,Math.max(0,m.s1||0));
     const s1=Math.min(6,Math.max(0,m.s2||0));
@@ -253,8 +254,10 @@ async function nextRound(){
     }
   });
   state.players.forEach(p=>{p.buchholz=p.opponents.reduce((s,n)=>s+(state.players.find(x=>x.name==n)?.total||0),0);});
+
   state.round++;
 
+  // 第4輪比完要顯示排名，不是第3輪就結算
   if(state.round<=state.totalRounds){
     generateSwissMatches();
     await saveState(); renderPlayers(); renderSwissMatches();
