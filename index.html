@@ -3,48 +3,48 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>戰鬥陀螺Beyblade X賽事系統</title>
+<title>戰鬥陀螺Beyblade X單淘汰</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   *{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"微軟正黑體",sans-serif}
   body{margin:0;padding:16px;color:#fff;position:relative;min-height:100vh;background:#0a0f1a}
   body::before{content:"";position:fixed;top:0;left:0;width:100%;height:100%;background-repeat:repeat;background-position:center;filter:brightness(0.6) saturate(1.15);z-index:-1}
   body.has-bg::before{background-image:var(--bg);}
-  h2{margin:0 0 12px;font-size:28px;font-weight:900;letter-spacing:1px;text-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer}
-.card{background:#1e293b/65;border-radius:14px;padding:16px;margin-bottom:12px;backdrop-filter:blur(4px);border:1px solid #334155}
-  input,button,select{width:100%;padding:12px;border-radius:8px;border:none;margin:6px 0;font-size:16px}
-  input,select{background:#334155;color:#fff;text-align:center}
+  h2{margin:0 0 12px;font-size:26px;font-weight:900;letter-spacing:1px;text-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer}
+  h2:active{transform:scale(.98)}
+ .card{background:#1e293b/65;border-radius:14px;padding:16px;margin-bottom:12px;backdrop-filter:blur(4px);border:1px solid #334155}
+  input,button{width:100%;padding:12px;border-radius:8px;border:none;margin:6px 0;font-size:16px}
+  input{background:#334155;color:#fff;text-align:center}
   button{background:#3b82f6;color:#fff;font-weight:600}
   button.danger{background:#ef4444}
   button.ghost{background:#475569;padding:6px 10px;font-size:13px;width:auto}
   button:disabled{background:#475569}
-.player{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:10px;margin:6px 0;background:#0f172a/80;backdrop-filter:blur(8px);border:1px solid #334155}
-.player-name{font-size:18px;font-weight:600}
-.player-stat{font-size:16px;color:#facc15;font-weight:700}
-.player-btns{display:flex;gap:6px}
-.player-btns button{width:auto;padding:6px 12px;font-size:14px}
-.match{background:#334155;padding:12px;border-radius:8px;margin:8px 0}
-.score-row{display:grid;grid-template-columns:1fr 50px 1fr;gap:8px;align-items:center;margin:8px 0}
-.vs{color:#94a3b8;font-size:14px;text-align:center}
-.bracket{display:flex;gap:20px;overflow-x:auto;padding:12px 0}
-.bracket-round{display:flex;flex-direction:column;gap:12px;min-width:240px}
-.bracket-match{background:#334155;padding:10px;border-radius:8px;border:1px solid #475569}
-.bracket-match.winner{border-color:#22c55e}
-.bracket-player{padding:8px;border-radius:6px;margin:4px 0;background:#1e293b;text-align:center}
-.bracket-player.loser{opacity:0.4;text-decoration:line-through}
-.bracket-player.bye{background:#0f172a;border:1px dashed #475569;color:#22c55e}
-.row{display:flex;gap:8px;align-items:center}
-.row input{flex:1}
-.qr-wrap{display:flex;justify-content:center;margin:12px 0}
-.qr{padding:8px;background:#fff;border-radius:8px}
-.loading{color:#94a3b8;text-align:center;padding:20px}
-.label{font-size:12px;color:#94a3b8;margin-bottom:4px}
+ .player{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:10px;margin:6px 0;background:#0f172a/80;backdrop-filter:blur(8px);border:1px solid #334155}
+ .player-name{font-size:18px;font-weight:600}
+ .player-btns{display:flex;gap:6px}
+ .player-btns button{width:auto;padding:6px 12px;font-size:14px}
+ .bracket{display:flex;gap:20px;overflow-x:auto;padding:12px 0}
+ .bracket-round{display:flex;flex-direction:column;gap:16px;min-width:240px}
+ .bracket-match{background:#334155;padding:10px;border-radius:8px;border:1px solid #475569}
+ .bracket-match.winner{border-color:#22c55e}
+ .bracket-player{padding:10px 12px;border-radius:6px;margin:4px 0;background:#1e293b;text-align:center;font-weight:600}
+ .bracket-player.loser{opacity:0.35;text-decoration:line-through}
+ .bracket-player.bye{background:#0f172a;border:1px dashed #475569;color:#22c55e}
+ .bracket-player.clickable{cursor:pointer}
+ .bracket-player.clickable:hover{background:#3b82f6;color:#fff}
+ .row{display:flex;gap:8px;align-items:center}
+ .row input{flex:1}
+ .qr-wrap{display:flex;justify-content:center;margin:12px 0}
+ .qr{padding:8px;background:#fff;border-radius:8px}
+ .loading{color:#94a3b8;text-align:center;padding:20px}
+ .label{font-size:12px;color:#94a3b8;margin-bottom:6px}
+ .stats{font-size:13px;color:#94a3b8;margin-top:6px}
 </style>
 </head>
 <body>
 
 <div class="card">
-  <h2 id="title" ondblclick="editTitle()">🏆 Beyblade X 賽事系統</h2>
+  <h2 id="title" ondblclick="editTitle()">🏆 Beyblade X 單淘汰賽</h2>
   <div class="row">
     <input id="pName" placeholder="輸入選手名字">
     <button onclick="addPlayer()" style="width:auto">加入</button>
@@ -52,26 +52,10 @@
   <div id="players"><div class="loading">讀取中...</div></div>
 
   <div class="row" style="margin-top:10px">
-    <select id="mode" onchange="changeMode()">
-      <option value="swiss">瑞士制</option>
-      <option value="single">單淘汰</option>
-      <option value="double">雙淘汰</option>
-    </select>
-    <select id="totalRounds" onchange="changeRounds()">
-      <option value="3">共3輪</option>
-      <option value="4" selected>共4輪</option>
-      <option value="5">共5輪</option>
-      <option value="6">共6輪</option>
-    </select>
     <button onclick="startTournament()" id="startBtn" disabled>開始比賽</button>
     <button class="ghost" onclick="resetTournament()">重開</button>
   </div>
-</div>
-
-<div class="card" id="matchCard" style="display:none">
-  <h2 id="roundTitle">第1輪</h2>
-  <div id="matches"></div>
-  <button onclick="nextRound()">提交本輪 → 下一輪</button>
+  <div class="stats" id="stats"></div>
 </div>
 
 <div class="card" id="bracketCard" style="display:none">
@@ -87,7 +71,7 @@
 
 <script>
 const ROOM_ID = location.pathname.split('/').pop() || 'default';
-let state = {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 賽事系統',bgUrl:'',mode:'swiss',bracket:{w:[],l:[],final:[]},currentMatches:[]};
+let state = {players:[],title:'🏆 Beyblade X 單淘汰賽',bgUrl:'',bracket:[],started:false};
 
 async function loadState(){
   try{
@@ -96,27 +80,24 @@ async function loadState(){
   }catch(e){}
   applyState();
 }
+
 async function saveState(){
   await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
 }
+
 function applyState(){
   document.getElementById('title').textContent = state.title;
-  document.getElementById('totalRounds').value = state.totalRounds;
-  document.getElementById('mode').value = state.mode;
   if(state.bgUrl){document.body.style.setProperty('--bg',`url(${state.bgUrl})`);document.body.classList.add('has-bg');}
   renderPlayers();
+  if(state.started) renderBracket();
 }
+
 function shuffle(arr){return arr.sort(()=>Math.random()-0.5);}
-function sortPlayers(){return state.players.sort((a,b)=>b.win-a.win||a.lose-b.lose||b.total-a.total||b.buchholz-a.buchholz);}
 
 function renderPlayers(){
-  sortPlayers();
   document.getElementById('players').innerHTML = state.players.map((p,i)=>
     `<div class="player">
-      <div class="player-info">
-        <span class="player-name">${i+1}. ${p.name}</span>
-        <span class="player-stat">${p.win}勝 ${p.lose}敗 ${p.total}分</span>
-      </div>
+      <span class="player-name">${i+1}. ${p.name}</span>
       <div class="player-btns">
         <button onclick="editPlayer(${i})">改</button>
         <button class="danger" onclick="delPlayer(${i})">刪</button>
@@ -124,179 +105,108 @@ function renderPlayers(){
     </div>`
   ).join('') || '<div class="loading">還沒人報名</div>';
 
-  const hasStarted = state.round>0 || state.bracket.w.length>0;
-  document.getElementById('startBtn').disabled = state.players.length<4 || hasStarted;
-  document.getElementById('startBtn').textContent = hasStarted?'比賽進行中':'開始比賽';
-
-  if(state.mode==='swiss' && state.round>0) renderSwissMatches();
-  if(state.mode==='single' || state.mode==='double') renderBracket();
+  document.getElementById('startBtn').disabled = state.players.length<4 || state.started;
+  document.getElementById('stats').textContent = state.started? `總場次: ${state.players.length-1} 場` : `需至少4人才能開賽`;
   genQR();
 }
 
 async function addPlayer(){
   const name = document.getElementById('pName').value.trim();
   if(!name||state.players.find(p=>p.name===name)) return;
-  state.players.push({name,total:0,win:0,lose:0,buchholz:0,opponents:[],alive:true});
+  state.players.push({name,alive:true});
   document.getElementById('pName').value='';
   await saveState(); renderPlayers();
 }
+
 async function editPlayer(i){
   const newName = prompt('修改選手名字:',state.players[i].name);
   if(newName && newName.trim()) {state.players[i].name=newName.trim();await saveState();renderPlayers();}
 }
+
 async function delPlayer(i){
   if(confirm(`確定刪除 ${state.players[i].name}？`)){state.players.splice(i,1);await saveState();renderPlayers();}
 }
+
 async function resetTournament(){
   if(confirm('確定重開賽程？所有成績會清空')){
-    state={players:state.players.map(p=>({...p,total:0,win:0,lose:0,buchholz:0,opponents:[],alive:true})),round:0,totalRounds:state.totalRounds,title:state.title,bgUrl:state.bgUrl,mode:state.mode,bracket:{w:[],l:[],final:[]},currentMatches:[]};
+    state={players:state.players.map(p=>({...p,alive:true})),round:0,title:state.title,bgUrl:state.bgUrl,bracket:[],started:false};
     await saveState(); renderPlayers();
-    document.getElementById('matchCard').style.display='none';
     document.getElementById('bracketCard').style.display='none';
   }
 }
-async function changeRounds(){state.totalRounds=parseInt(document.getElementById('totalRounds').value);await saveState();}
-async function changeMode(){state.mode=document.getElementById('mode').value;await saveState();}
 
 async function startTournament(){
-  if(state.mode==='swiss') return startSwiss();
-  if(state.mode==='single') return startSingle();
-  if(state.mode==='double') return startDouble();
-}
-
-// 瑞士制
-async function startSwiss(){
-  state.round=1;
-  generateSwissMatches();
-  await saveState();
-  document.getElementById('matchCard').style.display='block';
-  document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
-  renderSwissMatches();
-}
-
-function generateSwissMatches(){
-  const alive = shuffle(state.players.filter(p=>p.alive));
-  const matches=[]; const paired=new Set();
-  for(let i=0;i<alive.length;i++){
-    if(paired.has(i)) continue;
-    for(let j=i+1;j<alive.length;j++){
-      if(paired.has(j)) continue;
-      if(!alive[i].opponents.includes(alive[j].name)){
-        matches.push([alive[i],alive[j]]);paired.add(i);paired.add(j);break;
-      }
-    }
-  }
-  if(alive.length%2===1 &&!paired.has(alive.length-1)){
-    alive[alive.length-1].total+=3;alive[alive.length-1].win+=1;
-  }
-  state.currentMatches=matches;
-}
-
-function renderSwissMatches(){
-  document.getElementById('matchCard').style.display='block';
-  document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
-  document.getElementById('matches').innerHTML = state.currentMatches.map((m,i)=>
-    `<div class="match">
-      <div class="score-row">
-        <span>${m[0].name}</span><span class="vs">VS</span><span>${m[1].name}</span>
-        <input id="s${i}0" type="number" min="0" max="6" value="0" placeholder="0-6">
-        <span class="vs">分</span>
-        <input id="s${i}1" type="number" min="0" max="6" value="0" placeholder="0-6">
-      </div>
-      <div class="pts">輸入該場得分 0-6，先累積4分者獲勝</div>
-    </div>`
-  ).join('');
-}
-
-async function nextRound(){
-  state.currentMatches.forEach((m,i)=>{
-    const s0=Math.min(6,Math.max(0,parseInt(document.getElementById(`s${i}0`).value)||0));
-    const s1=Math.min(6,Math.max(0,parseInt(document.getElementById(`s${i}1`).value)||0));
-    if(s0||s1){
-      m[0].total+=s0;m[1].total+=s1;
-      if(s0>s1){m[0].win++;m[1].lose++;}else if(s1>s0){m[1].win++;m[0].lose++;}
-      if(!m[0].opponents.includes(m[1].name)) m[0].opponents.push(m[1].name);
-      if(!m[1].opponents.includes(m[0].name)) m[1].opponents.push(m[0].name);
-    }
-  });
-  state.players.forEach(p=>{p.buchholz=p.opponents.reduce((s,n)=>s+(state.players.find(x=>x.name==n)?.total||0),0);});
-  state.round++;
-
-  if(state.mode==='swiss' && state.round<=state.totalRounds){
-    generateSwissMatches();
-    renderSwissMatches();
-  }else{
-    document.getElementById('matchCard').style.display='none';
-  }
-  await saveState(); renderPlayers();
-}
-
-// 單淘汰
-async function startSingle(){
   let alive = shuffle(state.players.filter(p=>p.alive).map(p=>p.name));
-  // 奇數補BYE晉級，不放進第一輪配對
+
+  // 奇數直接讓最後一個輪空晉級
   if(alive.length%2===1){
-    const byePlayer = alive.pop();
+    alive.pop(); // BYE不進第一輪
   }
-  state.bracket.w = generateBracketRound(alive);
+
+  state.bracket = generateBracket(alive);
+  state.started = true;
   await saveState(); renderBracket();
   document.getElementById('bracketCard').style.display='block';
 }
 
-function generateBracketRound(players){
-  let round=[];
-  let current=[...players];
-  let m=[];
+function generateBracket(players){
+  let rounds = [];
+  let current = [...players];
+
+  // 第一輪隨機配對
+  let round1=[];
   for(let i=0;i<current.length;i+=2){
-    m.push({p1:current[i],p2:current[i+1],w:null});
+    round1.push({p1:current[i],p2:current[i+1],w:null});
   }
-  round.push(m);
-  // 預建後續空輪次
-  let nextLen=Math.ceil(current.length/2);
+  rounds.push(round1);
+
+  // 後續輪次預建空陣
+  let nextLen = Math.ceil(current.length/2);
   while(nextLen>1){
-    round.push(Array(nextLen).fill(null).map(()=>({p1:null,p2:null,w:null})));
-    nextLen=Math.ceil(nextLen/2);
+    rounds.push(Array(nextLen).fill(null).map(()=>({p1:null,p2:null,w:null})));
+    nextLen = Math.ceil(nextLen/2);
   }
-  round.push([{p1:null,p2:null,w:null}]); // 冠軍
-  return round;
+  rounds.push([{p1:null,p2:null,w:null}]); // 冠軍
+  return rounds;
 }
 
 function renderBracket(){
   document.getElementById('bracketCard').style.display='block';
-  let html = `<div class="label">勝部</div><div class="bracket">`;
-  html += state.bracket.w.map((round,rIdx)=>`
-    <div class="bracket-round">
-      <div class="label">第${rIdx+1}輪</div>
-      ${round.map((m,mIdx)=>renderBracketMatch(m,rIdx,mIdx,'w')).join('')}
-    </div>
-  `).join('');
-  html += `</div>`;
+  const roundNames = ['32強','16強','8強','4強','準決賽','決賽','冠軍'];
+
+  let html = state.bracket.map((round,rIdx)=>{
+    const name = roundNames[round.length===1?6:Math.log2(state.players.length)-rIdx-1] || `第${rIdx+1}輪`;
+    return `
+      <div class="bracket-round">
+        <div class="label">${name}</div>
+        ${round.map((m,mIdx)=>renderMatch(m,rIdx,mIdx)).join('')}
+      </div>
+    `
+  }).join('');
   document.getElementById('bracket').innerHTML = html;
 }
 
-function renderBracketMatch(m,rIdx,mIdx,type){
+function renderMatch(m,rIdx,mIdx){
   const p1 = m.p1 || '待定';
   const p2 = m.p2 || '待定';
   const w = m.w;
+  const canClick =!w && p1!=='待定' && p2!=='待定';
+
   return `<div class="bracket-match ${w?'winner':''}">
-    <div class="bracket-player ${w===p2?'loser':''}">${p1}</div>
-    <div class="bracket-player ${w===p1?'loser':''}">${p2}</div>
-    ${!w && p1!=='待定' && p2!=='待定'? `
-      <button onclick="setWinner('${type}',${rIdx},${mIdx},'${p1}')">選${p1}勝</button>
-      <button onclick="setWinner('${type}',${rIdx},${mIdx},'${p2}')">選${p2}勝</button>` : ''}
+    <div class="bracket-player ${w===p2?'loser':''} ${canClick?'clickable':''}" onclick="${canClick?`setWinner(${rIdx},${mIdx},'${p1}')`:''}">${p1}</div>
+    <div class="bracket-player ${w===p1?'loser':''} ${canClick?'clickable':''}" onclick="${canClick?`setWinner(${rIdx},${mIdx},'${p2}')`:''}">${p2}</div>
   </div>`
 }
 
-async function setWinner(type,rIdx,mIdx,winner){
-  const round = state.bracket[type];
-  const m = round[rIdx][mIdx];
+async function setWinner(rIdx,mIdx,winner){
+  const round = state.bracket[rIdx];
+  const m = round[mIdx];
   if(m.w) return;
   m.w = winner;
-  const nextR = rIdx+1;
 
-  // 推進勝者到下一輪
-  if(round[nextR] && round[nextR][Math.floor(mIdx/2)]){
-    const nextM = round[nextR][Math.floor(mIdx/2)];
+  const nextR = rIdx+1;
+  if(state.bracket[nextR] && state.bracket[nextR][Math.floor(mIdx/2)]){
+    const nextM = state.bracket[nextR][Math.floor(mIdx/2)];
     if(mIdx%2===0) nextM.p1 = winner; else nextM.p2 = winner;
   }
   await saveState(); renderBracket();
@@ -306,17 +216,20 @@ async function editTitle(){
   const newTitle = prompt('修改比賽名稱:',state.title);
   if(newTitle && newTitle.trim()){state.title=newTitle.trim();await saveState();applyState();}
 }
+
 document.body.ondblclick=(e)=>{
   if(e.target!==document.body) return;
   const url=prompt('貼上背景圖片網址:');
   if(url){state.bgUrl=url;saveState();applyState();}
 }
+
 function genQR(){
   const url=location.href;
   document.getElementById('urlText').textContent=url;
   document.getElementById('qrcode').innerHTML='';
   new QRCode(document.getElementById('qrcode'),{text:url,width:140,height:140});
 }
+
 loadState();
 setInterval(loadState,3000);
 </script>
