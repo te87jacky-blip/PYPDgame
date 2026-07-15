@@ -26,7 +26,6 @@
 .player-btns{display:flex;gap:6px}
 .player-btns button{width:auto;padding:6px 12px;font-size:14px;font-weight:600}
 .match{background:#334155;padding:12px;border-radius:8px;margin:8px 0}
-.match.winner{border:2px solid #22c55e}
 .score-row{display:grid;grid-template-columns:1fr 50px 1fr;gap:8px;align-items:center;margin:8px 0}
 .vs{color:#94a3b8;font-size:14px;text-align:center}
 .bracket{display:flex;gap:20px;overflow-x:auto;padding:12px 0}
@@ -42,6 +41,11 @@
 .qr{padding:8px;background:#fff;border-radius:8px}
 .loading{color:#94a3b8;text-align:center;padding:20px}
 .label{font-size:12px;color:#94a3b8;margin-bottom:4px}
+.rr-table{width:100%;border-collapse:collapse;margin-top:8px}
+.rr-table th,.rr-table td{border:1px solid #475569;padding:8px;text-align:center;font-size:14px}
+.rr-table th{background:#334155}
+.rr-win{color:#22c55e;font-weight:700}
+.rr-lose{color:#ef4444}
 </style>
 </head>
 <body>
@@ -96,14 +100,12 @@ async function loadState(){
   try{
     const res = await fetch(`/api/state?room=${ROOM_ID}`);
     if(res.ok) state = await res.json();
-  }catch(e){console.log('載入失敗',e)}
+  }catch(e){}
   applyState();
 }
 
 async function saveState(){
-  try{
-    await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
-  }catch(e){console.log('儲存失敗',e)}
+  await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
 }
 
 function applyState(){
@@ -113,6 +115,8 @@ function applyState(){
   if(state.bgUrl){document.body.style.setProperty('--bg',`url(${state.bgUrl})`);document.body.classList.add('has-bg');}
   renderPlayers();
 }
+
+function shuffle(arr){ return arr.sort(()=>Math.random()-0.5); }
 
 function sortPlayers(){
   return state.players.sort((a,b)=>{
@@ -199,10 +203,6 @@ async function startSwiss(){
   renderSwissMatches();
 }
 
-function shuffle(arr){
-  return arr.sort(()=>Math.random()-0.5);
-}
-
 function generateSwissMatches(){
   const alive = shuffle(state.players.filter(p=>p.alive));
   const matches=[]; const paired=new Set();
@@ -251,7 +251,7 @@ async function nextRound(){
   state.players.forEach(p=>{p.buchholz=p.opponents.reduce((s,n)=>s+(state.players.find(x=>x.name==n)?.total||0),0);});
   state.round++;
 
-  if(state.round<=state.totalRounds && state.mode==='swiss'){
+  if(state.mode==='swiss' && state.round<=state.totalRounds){
     generateSwissMatches();
     renderSwissMatches();
   }else{
@@ -263,7 +263,6 @@ async function nextRound(){
 // 單淘汰/雙淘汰
 async function startSingle(){
   let alive = shuffle(state.players.filter(p=>p.alive));
-  // 奇數補BYE
   if(alive.length%2===1) alive.push({name:'BYE',alive:true,total:0,win:0,lose:0});
   state.bracket.w = generateBracketRound(alive.map(p=>p.name));
   state.bracket.final = [];
@@ -282,9 +281,15 @@ function generateBracketRound(players){
   }
   round.push(m);
 
-  // 後續輪空陣
-  let next = Array(Math.ceil(current.length/2)).fill(null);
-  round.push(next.map(() => ({p1:null,p2:null,w:null})));
+  // 預建後續輪空陣
+  let nextLen = Math.ceil(current.length/2);
+  while(nextLen>1){
+    round.push(Array(nextLen).fill(null).map(()=>({p1:null,p2:null,w:null})));
+    nextLen = Math.ceil(nextLen/2);
+  }
+  if(state.mode==='double'){
+    round.push([{p1:null,p2:null,w:null}]); // 冠軍賽
+  }
   return round;
 }
 
@@ -348,21 +353,28 @@ function renderBracketMatch(m,rIdx,mIdx,type){
 async function setWinner(type,rIdx,mIdx,winner){
   const round = type==='w'?state.bracket.w:type==='l'?state.bracket.l:state.bracket.final;
   const m = round[rIdx][mIdx];
+  if(m.w) return; // 已有勝者不能改
   m.w = winner;
   const nextR = rIdx+1;
 
+  // 推進勝者到下一輪
   if(round[nextR] && round[nextR][Math.floor(mIdx/2)]){
     const nextM = round[nextR][Math.floor(mIdx/2)];
     if(mIdx%2===0) nextM.p1 = winner; else nextM.p2 = winner;
   }
 
   // 雙淘汰勝部輸家掉敗部
-  if(type==='w' && winner){
+  if(type==='w' && winner && m.p2!=='BYE'){
     const loser = winner===m.p1?m.p2:m.p1;
-    if(loser!=='BYE'){
-      if(!state.bracket.l[rIdx]) state.bracket.l[rIdx]=[];
-      state.bracket.l[rIdx].push({p1:loser,p2:null,w:null});
-      organizeLoserBracket(rIdx);
+    const lIdx = Math.floor(rIdx/2);
+    if(!state.bracket.l[lIdx]) state.bracket.l[lIdx]=[];
+    const lPos = state.bracket.l[lIdx].findIndex(x=>!x.p1 ||!x.p2);
+    if(lPos!==-1){
+      if(!state.bracket.l[lIdx][lPos].p1) state.bracket.l[lIdx][lPos].p1=loser;
+      else state.bracket.l[lIdx][lPos].p2=loser;
+    }else{
+      if(!state.bracket.l[lIdx+1]) state.bracket.l[lIdx+1]=[];
+      state.bracket.l[lIdx+1].push({p1:loser,p2:null,w:null});
     }
   }
 
@@ -371,28 +383,14 @@ async function setWinner(type,rIdx,mIdx,winner){
   await saveState(); renderBracket();
 }
 
-function organizeLoserBracket(rIdx){
-  let losers = state.bracket.l[rIdx]?.filter(m=>m.w).map(m=>m.w) || [];
-  const byeLosers = state.bracket.w[rIdx]?.filter(m=>m.p2==='BYE' && m.w===m.p1).map(m=>m.p2) || [];
-  losers = [...losers,...byeLosers];
-  if(losers.length===0) return;
-
-  const nextR = rIdx+1;
-  if(!state.bracket.l[nextR]) state.bracket.l[nextR]=[];
-  for(let i=0;i<losers.length;i+=2){
-    if(losers[i+1]) state.bracket.l[nextR].push({p1:losers[i],p2:losers[i+1],w:null});
-  }
-}
-
 function checkForRoundRobin(){
-  const aliveW = state.bracket.w[state.bracket.w.length-1]?.filter(m=>m.w).map(m=>m.w) || [];
-  const aliveL = state.bracket.l[state.bracket.l.length-1]?.filter(m=>m.w).map(m=>m.w) || [];
-  const alive = [...aliveW,...aliveL].filter((v,i,self)=>self.indexOf(v)===i);
+  const aliveW = state.bracket.w[state.bracket.w.length-1]?.filter(m=>m.w).map(m=>m.w).filter(n=>n!=='BYE') || [];
+  const aliveL = state.bracket.l[state.bracket.l.length-1]?.filter(m=>m.w).map(m=>m.w).filter(n=>n!=='BYE') || [];
+  const alive = [...new Set([...aliveW,...aliveL])];
 
   if(alive.length===3 &&!state.bracket.rrDone){
     state.bracket.rr = alive;
     state.bracket.rrDone = true;
-    // 初始化循環賽對戰
     state.currentMatches = [[alive[0],alive[1]],[alive[1],alive[2]],[alive[0],alive[2]]];
     document.getElementById('matchCard').style.display='block';
     document.getElementById('roundTitle').textContent=`三人循環賽`;
