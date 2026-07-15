@@ -14,6 +14,7 @@ export default async function handler(req, res) {
         headers: { Authorization: `Bearer ${TOKEN}` }
       });
       const data = await r.json();
+      // Upstash回傳是string，要自己JSON.parse
       const value = data.result ? JSON.parse(data.result) : {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 瑞士制',bgUrl:''};
       return res.json(value);
     } catch (e) {
