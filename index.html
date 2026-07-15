@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>戰鬥陀螺Beyblade X瑞士制</title>
+<title>戰鬥陀螺Beyblade X賽事系統</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   *{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"微軟正黑體",sans-serif}
@@ -25,29 +25,28 @@
 .player-stat{font-size:16px;color:#facc15;font-weight:700;letter-spacing:0.3px}
 .player-btns{display:flex;gap:6px}
 .player-btns button{width:auto;padding:6px 12px;font-size:14px;font-weight:600}
-.podium{display:flex;justify-content:center;align-items:end;gap:8px;margin:16px 0}
-.podium-card{width:30%;padding:12px;border-radius:12px;text-align:center;font-weight:700}
-.podium-card.gold{background:linear-gradient(180deg,#ffd700,#f4c430);color:#000}
-.podium-card.silver{background:linear-gradient(180deg,#e8e8e8,#c0c0c0);color:#000}
-.podium-card.bronze{background:linear-gradient(180deg,#cd7f32,#b8860b);color:#fff}
-.podium-card.rank{font-size:32px;margin-bottom:4px}
-.podium-card.name{font-size:16px;margin-bottom:4px}
-.podium-card.pts{font-size:14px;opacity:.9}
 .match{background:#334155;padding:12px;border-radius:8px;margin:8px 0}
+.match.winner{border:2px solid #22c55e}
 .score-row{display:grid;grid-template-columns:1fr 50px 1fr;gap:8px;align-items:center;margin:8px 0}
 .vs{color:#94a3b8;font-size:14px;text-align:center}
-.pts{font-size:12px;color:#94a3b8;text-align:center;margin-top:4px}
+.bracket{display:flex;gap:20px;overflow-x:auto;padding:12px 0}
+.bracket-round{display:flex;flex-direction:column;gap:12px;min-width:220px}
+.bracket-match{background:#334155;padding:10px;border-radius:8px;border:1px solid #475569}
+.bracket-match.winner{border-color:#22c55e}
+.bracket-player{padding:6px 8px;border-radius:6px;margin:4px 0;background:#1e293b}
+.bracket-player.loser{opacity:0.4;text-decoration:line-through}
 .row{display:flex;gap:8px;align-items:center}
 .row input{flex:1}
 .qr-wrap{display:flex;justify-content:center;margin:12px 0}
 .qr{padding:8px;background:#fff;border-radius:8px}
 .loading{color:#94a3b8;text-align:center;padding:20px}
+.label{font-size:12px;color:#94a3b8;margin-bottom:4px}
 </style>
 </head>
 <body>
 
 <div class="card">
-  <h2 id="title" ondblclick="editTitle()">🏆 Beyblade X 瑞士制</h2>
+  <h2 id="title" ondblclick="editTitle()">🏆 Beyblade X 賽事系統</h2>
   <div class="row">
     <input id="pName" placeholder="輸入選手名字">
     <button onclick="addPlayer()" style="width:auto">加入</button>
@@ -55,13 +54,18 @@
   <div id="players"><div class="loading">讀取中...</div></div>
 
   <div class="row" style="margin-top:10px">
+    <select id="mode" onchange="changeMode()">
+      <option value="swiss">瑞士制</option>
+      <option value="single">單淘汰</option>
+      <option value="double">雙淘汰</option>
+    </select>
     <select id="totalRounds" onchange="changeRounds()">
       <option value="3">共3輪</option>
       <option value="4" selected>共4輪</option>
       <option value="5">共5輪</option>
       <option value="6">共6輪</option>
     </select>
-    <button onclick="startRound()" id="startBtn" disabled>開始第1輪</button>
+    <button onclick="startTournament()" id="startBtn" disabled>開始比賽</button>
     <button class="ghost" onclick="resetTournament()">重開</button>
   </div>
 </div>
@@ -72,9 +76,9 @@
   <button onclick="nextRound()">提交本輪 → 下一輪</button>
 </div>
 
-<div class="card" id="podiumCard" style="display:none">
-  <h2>🏅 決賽排名</h2>
-  <div id="podium" class="podium"></div>
+<div class="card" id="bracketCard" style="display:none">
+  <h2 id="bracketTitle">賽程表</h2>
+  <div id="bracket" class="bracket"></div>
 </div>
 
 <div class="card">
@@ -85,7 +89,7 @@
 
 <script>
 const ROOM_ID = location.pathname.split('/').pop() || 'default';
-let state = {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 瑞士制',bgUrl:''};
+let state = {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 賽事系統',bgUrl:'',mode:'swiss',bracket:{w:[],l:[],final:[]}};
 
 async function loadState(){
   try{
@@ -98,13 +102,13 @@ async function loadState(){
 async function saveState(){
   try{
     await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
-    console.log('儲存成功');
   }catch(e){console.log('儲存失敗',e)}
 }
 
 function applyState(){
   document.getElementById('title').textContent = state.title;
   document.getElementById('totalRounds').value = state.totalRounds;
+  document.getElementById('mode').value = state.mode;
   if(state.bgUrl){document.body.style.setProperty('--bg',`url(${state.bgUrl})`);document.body.classList.add('has-bg');}
   renderPlayers();
 }
@@ -133,17 +137,19 @@ function renderPlayers(){
     </div>`
   ).join('') || '<div class="loading">還沒人報名</div>';
 
-  const finished=state.round>=state.totalRounds;
-  document.getElementById('startBtn').disabled = state.players.length<4 || finished;
-  document.getElementById('startBtn').textContent=finished?'查看排名':`開始第${state.round+1}輪`;
-  if(finished) showPodium();
+  const hasStarted = state.round>0 || state.bracket.w.length>0;
+  document.getElementById('startBtn').disabled = state.players.length<4 || hasStarted;
+  document.getElementById('startBtn').textContent = hasStarted?'比賽進行中':'開始比賽';
+
+  if(state.mode==='swiss' && state.round>0) renderSwissMatches();
+  if(state.mode==='single' || state.mode==='double') renderBracket();
   genQR();
 }
 
 async function addPlayer(){
   const name = document.getElementById('pName').value.trim();
   if(!name||state.players.find(p=>p.name===name)) return;
-  state.players.push({name,total:0,win:0,lose:0,buchholz:0,opponents:[]});
+  state.players.push({name,total:0,win:0,lose:0,buchholz:0,opponents:[],alive:true});
   document.getElementById('pName').value='';
   await saveState(); renderPlayers();
 }
@@ -159,10 +165,10 @@ async function delPlayer(i){
 
 async function resetTournament(){
   if(confirm('確定重開賽程？所有成績會清空')){
-    state.players.forEach(p=>{p.total=0;p.win=0;p.lose=0;p.buchholz=0;p.opponents=[]});
-    state.round=0; await saveState(); renderPlayers();
+    state={players:state.players.map(p=>({...p,total:0,win:0,lose:0,buchholz:0,opponents:[],alive:true})),round:0,totalRounds:state.totalRounds,title:state.title,bgUrl:state.bgUrl,mode:state.mode,bracket:{w:[],l:[],final:[]}};
+    await saveState(); renderPlayers();
     document.getElementById('matchCard').style.display='none';
-    document.getElementById('podiumCard').style.display='none';
+    document.getElementById('bracketCard').style.display='none';
   }
 }
 
@@ -171,9 +177,26 @@ async function changeRounds(){
   await saveState();
 }
 
-async function startRound(){
-  if(state.round>=state.totalRounds) return showPodium();
-  state.round++;
+async function changeMode(){
+  state.mode = document.getElementById('mode').value;
+  await saveState();
+}
+
+async function startTournament(){
+  if(state.mode==='swiss') return startSwiss();
+  if(state.mode==='single') return startSingle();
+  if(state.mode==='double') return startDouble();
+}
+
+async function startSwiss(){
+  state.round=1; await saveState();
+  generateSwissMatches();
+  document.getElementById('matchCard').style.display='block';
+  document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
+  renderSwissMatches(); await saveState();
+}
+
+function generateSwissMatches(){
   sortPlayers();
   const matches=[]; const paired=new Set();
   for(let i=0;i<state.players.length;i++){
@@ -189,12 +212,11 @@ async function startRound(){
     state.players[state.players.length-1].total+=3;state.players[state.players.length-1].win+=1;
   }
   window.currentMatches=matches;
-  document.getElementById('matchCard').style.display='block';
-  document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
-  renderMatches(); await saveState();
 }
 
-function renderMatches(){
+function renderSwissMatches(){
+  document.getElementById('matchCard').style.display='block';
+  document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
   document.getElementById('matches').innerHTML = window.currentMatches.map((m,i)=>
     `<div class="match">
       <div class="score-row">
@@ -220,18 +242,78 @@ async function nextRound(){
     }
   });
   state.players.forEach(p=>{p.buchholz=p.opponents.reduce((s,n)=>s+(state.players.find(x=>x.name==n)?.total||0),0);});
-  await saveState(); renderPlayers(); document.getElementById('matchCard').style.display='none';
+  state.round++;
+  if(state.round<=state.totalRounds) generateSwissMatches();
+  await saveState(); renderPlayers();
+  if(state.round<=state.totalRounds) renderSwissMatches();
+  else document.getElementById('matchCard').style.display='none';
 }
 
-function showPodium(){
-  const top3=sortPlayers().slice(0,3);
-  if(top3.length===0) return;
-  document.getElementById('podiumCard').style.display='block';
-  document.getElementById('podium').innerHTML = `
-    ${top3[1]?`<div class="podium-card silver"><div class="rank">🥈</div><div class="name">${top3[1].name}</div><div class="pts">${top3[1].win}勝 ${top3[1].lose}敗 ${top3[1].total}分</div></div>`:''}
-    ${top3[0]?`<div class="podium-card gold"><div class="rank">🥇</div><div class="name">${top3[0].name}</div><div class="pts">${top3[0].win}勝 ${top3[0].lose}敗 ${top3[0].total}分</div></div>`:''}
-    ${top3[2]?`<div class="podium-card bronze"><div class="rank">🥉</div><div class="name">${top3[2].name}</div><div class="pts">${top3[2].win}勝 ${top3[2].lose}敗 ${top3[2].total}分</div></div>`:''}
-  `;
+async function startSingle(){
+  const n = Math.pow(2,Math.ceil(Math.log2(state.players.length)));
+  const players = [...state.players];
+  while(players.length<n) players.push({name:'BYE',total:0,win:0,lose:0,alive:true});
+  state.bracket.w = generateBracket(players.map(p=>p.name));
+  state.bracket.final = [];
+  await saveState(); renderBracket();
+  document.getElementById('bracketCard').style.display='block';
+}
+
+function generateBracket(players){
+  let round = [players.map((name,i)=>({p1:name,p2:players[i+1],w:null}))];
+  let current = players;
+  while(current.length>2){
+    current = Array(current.length/2).fill(null).map((_,i)=>({p1:null,p2:null,w:null}));
+    round.push(current);
+  }
+  round.push([{p1:null,p2:null,w:null}]);
+  return round;
+}
+
+function renderBracket(){
+  document.getElementById('bracketCard').style.display='block';
+  const html = state.bracket.w.map((round,rIdx)=>`
+    <div class="bracket-round">
+      <div class="label">第${rIdx+1}輪</div>
+      ${round.map((m,mIdx)=>renderBracketMatch(m,rIdx,mIdx,'w')).join('')}
+    </div>
+  `).join('');
+  document.getElementById('bracket').innerHTML = html;
+}
+
+function renderBracketMatch(m,rIdx,mIdx,type){
+  const p1 = m.p1 || '待定';
+  const p2 = m.p2 || '待定';
+  const w = m.w;
+  return `<div class="bracket-match ${w?'winner':''}">
+    <div class="bracket-player ${w===p2?'loser':''}">${p1}</div>
+    <div class="bracket-player ${w===p1?'loser':''}">${p2}</div>
+    ${!w && p1!=='待定' && p2!=='待定'? `<button onclick="setWinner('${type}',${rIdx},${mIdx},'${p1}')">選${p1}勝</button>
+    <button onclick="setWinner('${type}',${rIdx},${mIdx},'${p2}')">選${p2}勝</button>` : ''}
+  </div>`
+}
+
+async function setWinner(type,rIdx,mIdx,winner){
+  const round = state.bracket[type][rIdx];
+  const m = round[mIdx];
+  m.w = winner;
+  const nextR = rIdx+1;
+  if(state.bracket[type][nextR]){
+    const nextM = state.bracket[type][nextR][Math.floor(mIdx/2)];
+    if(mIdx%2===0) nextM.p1 = winner; else nextM.p2 = winner;
+  }
+  await saveState(); renderBracket();
+}
+
+async function editTitle(){
+  const newTitle = prompt('修改比賽名稱:',state.title);
+  if(newTitle && newTitle.trim()){state.title=newTitle.trim();await saveState();applyState();}
+}
+
+document.body.ondblclick=(e)=>{
+  if(e.target!==document.body) return;
+  const url=prompt('貼上背景圖片網址:');
+  if(url){state.bgUrl=url;saveState();applyState();}
 }
 
 function genQR(){
@@ -241,23 +323,8 @@ function genQR(){
   new QRCode(document.getElementById('qrcode'),{text:url,width:140,height:140});
 }
 
-async function editTitle(){
-  const newTitle = prompt('修改比賽名稱:',state.title);
-  if(newTitle && newTitle.trim()){
-    state.title = newTitle.trim();
-    await saveState();
-    applyState();
-  }
-}
-
-document.body.ondblclick=(e)=>{
-  if(e.target!==document.body) return;
-  const url=prompt('貼上背景圖片網址:');
-  if(url){state.bgUrl=url;saveState();applyState();}
-}
-
 loadState();
-setInterval(loadState,5000);
+setInterval(loadState,3000);
 </script>
 </body>
 </html>
