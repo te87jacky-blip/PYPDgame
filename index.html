@@ -24,14 +24,6 @@
 .player-stat{font-size:16px;color:#facc15;font-weight:700;letter-spacing:0.3px}
 .player-btns{display:flex;gap:6px}
 .player-btns button{width:auto;padding:6px 12px;font-size:14px;font-weight:600}
-.podium{display:flex;justify-content:center;align-items:end;gap:8px;margin:16px 0}
-.podium-card{width:30%;padding:12px;border-radius:12px;text-align:center;font-weight:700}
-.podium-card.gold{background:linear-gradient(180deg,#ffd700,#f4c430);color:#000}
-.podium-card.silver{background:linear-gradient(180deg,#e8e8e8,#c0c0c0);color:#000}
-.podium-card.bronze{background:linear-gradient(180deg,#cd7f32,#b8860b);color:#fff}
-.podium-card.rank{font-size:32px;margin-bottom:4px}
-.podium-card.name{font-size:16px;margin-bottom:4px}
-.podium-card.pts{font-size:14px;opacity:.9}
 .match{background:#334155;padding:12px;border-radius:8px;margin:8px 0}
 .score-row{display:grid;grid-template-columns:1fr 50px 1fr;gap:8px;align-items:center;margin:8px 0}
 .vs{color:#94a3b8;font-size:14px;text-align:center}
@@ -44,7 +36,7 @@
 .bracket{display:flex;gap:16px;overflow-x:auto;padding:12px 0}
 .bracket-round{display:flex;flex-direction:column;gap:12px;min-width:220px}
 .bracket-match{background:#334155;padding:10px;border-radius:8px;border:2px solid #475569;transition:all 0.2s}
-.bracket-match.winner{border:2px solid #22c55e;box-shadow:0 0 8px #22c55e55}
+.bracket-match.winner{border:2px solid #22c55e!important;box-shadow:0 0 10px #22c55e66}
 .bracket-player{padding:10px 12px;border-radius:6px;margin:4px 0;background:#1e293b;text-align:center;font-weight:600;transition:all 0.2s}
 .bracket-player.loser{opacity:0.35;text-decoration:line-through}
 .bracket-player.bye{background:#0f172a;border:1px dashed #475569;color:#22c55e}
@@ -141,7 +133,6 @@ function renderPlayers(){
     </div>`
   ).join('') || '<div class="loading">還沒人報名</div>';
 
-  // 關鍵：瑞士制是 state.round > state.totalRounds 才算結束
   const swissFinished = state.mode==='swiss' && state.round > state.totalRounds;
   const singleFinished = state.mode==='single' && state.bracket.length>0 && state.bracket[state.bracket.length-1][0]?.w;
   const finished = swissFinished || singleFinished;
@@ -187,7 +178,7 @@ async function startTournament(){
   if(state.mode==='single') return startSingle();
 }
 
-// 瑞士制
+// 瑞士制 - 你的版本完全保留
 async function startSwiss(){
   state.started=true;
   state.round=1;
@@ -241,6 +232,7 @@ function updateScore(i,side,val){
 }
 
 async function nextRound(){
+  if(state.round>=state.totalRounds) return;
   state.currentMatches.forEach(m=>{
     const s0=Math.min(6,Math.max(0,m.s1||0));
     const s1=Math.min(6,Math.max(0,m.s2||0));
@@ -254,10 +246,8 @@ async function nextRound(){
     }
   });
   state.players.forEach(p=>{p.buchholz=p.opponents.reduce((s,n)=>s+(state.players.find(x=>x.name==n)?.total||0),0);});
-
   state.round++;
 
-  // 第4輪比完要顯示排名，不是第3輪就結算
   if(state.round<=state.totalRounds){
     generateSwissMatches();
     await saveState(); renderPlayers(); renderSwissMatches();
@@ -279,7 +269,7 @@ function showPodium(){
   `;
 }
 
-// 單淘汰
+// 單淘汰 - 修綠框
 async function startSingle(){
   let alive = shuffle(state.players.filter(p=>p.alive).map(p=>p.name));
   const bye = alive.length%2===1? alive.pop() : null;
@@ -324,17 +314,21 @@ function renderBracket(){
 function renderBracketMatch(m,rIdx,mIdx){
   const p1 = m.p1 || '';
   const p2 = m.p2 || '';
-  const w = m.w;
+  const w = m.w; // 勝者名字
   const canClick =!w && p1 && p2;
   if(!p1 &&!p2) return '';
+
+  const p1Class = w===p1? 'winner' : w===p2? 'loser' : '';
+  const p2Class = w===p2? 'winner' : w===p1? 'loser' : '';
+
   return `<div class="bracket-match ${w?'winner':''}">
-    <div class="bracket-player ${w===p2?'loser':''} ${canClick?'clickable':''}" onclick="${canClick?`setWinner(${rIdx},${mIdx},'${p1}')`:''}">${p1}</div>
-    <div class="bracket-player ${w===p1?'loser':''} ${canClick?'clickable':''}" onclick="${canClick?`setWinner(${rIdx},${mIdx},'${p2}')`:''}">${p2}</div>
+    <div class="bracket-player ${p1Class} ${canClick?'clickable':''}" onclick="${canClick?`setWinner(${rIdx},${mIdx},'${p1}')`:''}">${p1}</div>
+    <div class="bracket-player ${p2Class} ${canClick?'clickable':''}" onclick="${canClick?`setWinner(${rIdx},${mIdx},'${p2}')`:''}">${p2}</div>
   </div>`
 }
 
 async function setWinner(rIdx,mIdx,winner){
-  const m = state.bracket;
+  const m = state.bracket[rIdx][mIdx]; // 修正：要取到具體那場
   if(m.w) return;
   m.w = winner;
 
