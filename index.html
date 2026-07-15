@@ -32,7 +32,7 @@
 .podium-card.rank{font-size:32px;margin-bottom:4px}
 .podium-card.name{font-size:16px;margin-bottom:4px}
 .podium-card.pts{font-size:14px;opacity:.9}
-.match{background:#334155;padding:18px;border-radius:14px;margin:12px 0}
+.match{background:rgba(15,23,42,0.5);backdrop-filter:blur(6px);padding:18px;border-radius:14px;margin:12px 0;border:1px solid rgba(255,255,255,0.08)}
 .match-header{text-align:center;margin-bottom:14px}
 .match-name{font-size:18px;font-weight:700;letter-spacing:0.5px}
 .score-wrap{display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -46,6 +46,15 @@
 .qr-wrap{display:flex;justify-content:center;margin:12px 0}
 .qr{padding:8px;background:#fff;border-radius:8px}
 .loading{color:#94a3b8;text-align:center;padding:20px}
+.bracket{display:flex;gap:16px;overflow-x:auto;padding:12px 0}
+.bracket-round{display:flex;flex-direction:column;gap:12px;min-width:220px}
+.bracket-match{background:#334155;padding:10px;border-radius:8px;border:2px solid #475569;transition:all 0.2s}
+.bracket-match.winner{border:2px solid #22c55e!important;box-shadow:0 0 10px #22c55e66}
+.bracket-player{padding:10px 12px;border-radius:6px;margin:4px 0;background:#1e293b;text-align:center;font-weight:600;transition:all 0.2s}
+.bracket-player.loser{opacity:0.35;text-decoration:line-through}
+.bracket-player.bye{background:#0f172a;border:1px dashed #475569;color:#22c55e}
+.bracket-player.clickable{cursor:pointer}
+.bracket-player.clickable:hover{background:#3b82f6;color:#fff}
 </style>
 </head>
 <body>
@@ -79,6 +88,11 @@
   <button onclick="nextRound()">提交本輪 → 下一輪</button>
 </div>
 
+<div class="card" id="bracketCard" style="display:none">
+  <h2>單淘汰賽程</h2>
+  <div id="bracket" class="bracket"></div>
+</div>
+
 <div class="card" id="podiumCard" style="display:none">
   <h2>🏅 決賽排名</h2>
   <div id="podium" class="podium"></div>
@@ -92,7 +106,7 @@
 
 <script>
 const ROOM_ID = location.pathname.split('/').pop() || 'default';
-let state = {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 賽事系統',bgUrl:'',mode:'swiss',started:false,currentMatches:[]};
+let state = {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 賽事系統',bgUrl:'',mode:'swiss',bracket:[],started:false,currentMatches:[]};
 
 async function loadState(){
   try{
@@ -133,10 +147,14 @@ function renderPlayers(){
   ).join('') || '<div class="loading">還沒人報名</div>';
 
   const swissFinished = state.mode==='swiss' && state.round > state.totalRounds;
-  document.getElementById('startBtn').disabled = state.players.length<4 || state.started || swissFinished;
-  document.getElementById('startBtn').textContent = swissFinished?'查看排名':`開始第${state.round+1}輪`;
+  const singleFinished = state.mode==='single' && state.bracket.length>0 && state.bracket[state.bracket.length-1][0]?.w;
+  const finished = swissFinished || singleFinished;
+
+  document.getElementById('startBtn').disabled = state.players.length<4 || state.started || finished;
+  document.getElementById('startBtn').textContent = finished?'查看排名':state.mode==='swiss'?`開始第${state.round+1}輪`:'開始比賽';
 
   if(state.mode==='swiss' && state.round>0 && state.started &&!swissFinished) renderSwissMatches();
+  if(state.mode==='single' && state.started) renderBracket();
   if(swissFinished) showPodium();
   genQR();
 }
@@ -158,21 +176,40 @@ async function delPlayer(i){
 async function resetTournament(){
   if(confirm('確定重開賽程？所有成績會清空')){
     state.players.forEach(p=>{p.total=0;p.win=0;p.lose=0;p.buchholz=0;p.opponents=[];p.alive=true});
-    state.round=0; state.started=false; state.currentMatches=[];
+    state.round=0; state.started=false; state.bracket=[]; state.currentMatches=[];
     await saveState(); renderPlayers();
     document.getElementById('matchCard').style.display='none';
+    document.getElementById('bracketCard').style.display='none';
     document.getElementById('podiumCard').style.display='none';
   }
 }
 async function changeRounds(){state.totalRounds=parseInt(document.getElementById('totalRounds').value);await saveState();}
-async function changeMode(){state.mode=document.getElementById('mode').value;await saveState();}
+async function changeMode(){
+  state.mode=document.getElementById('mode').value;
+  state.started=false;
+  state.round=0;
+  state.currentMatches=[];
+  state.bracket=[];
+  await saveState();
+  document.getElementById('matchCard').style.display='none';
+  document.getElementById('bracketCard').style.display='none';
+  document.getElementById('podiumCard').style.display='none';
+  renderPlayers();
+}
 
 async function startTournament(){
+  if(state.mode==='swiss') return startSwiss();
+  if(state.mode==='single') return startSingle();
+}
+
+// 瑞士制
+async function startSwiss(){
   state.started=true;
   state.round=1;
   generateSwissMatches();
   await saveState();
   document.getElementById('matchCard').style.display='block';
+  document.getElementById('bracketCard').style.display='none';
   document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
   renderSwissMatches();
 }
@@ -252,6 +289,83 @@ function showPodium(){
     ${top3[0]?`<div class="podium-card gold"><div class="rank">🥇</div><div class="name">${top3[0].name}</div><div class="pts">${top3[0].win}勝 ${top3[0].lose}敗 ${top3[0].total}分</div></div>`:''}
     ${top3[2]?`<div class="podium-card bronze"><div class="rank">🥉</div><div class="name">${top3[2].name}</div><div class="pts">${top3[2].win}勝 ${top3[2].lose}敗 ${top3[2].total}分</div></div>`:''}
   `;
+}
+
+// 單淘汰 - 完全不動
+async function startSingle(){
+  let alive = shuffle(state.players.filter(p=>p.alive).map(p=>p.name));
+  const bye = alive.length%2===1? alive.pop() : null;
+
+  state.bracket = [];
+  let round1=[];
+  for(let i=0;i<alive.length;i+=2){
+    round1.push({p1:alive[i],p2:alive[i+1],w:null});
+  }
+  state.bracket.push(round1);
+
+  let nextLen = Math.ceil(alive.length/2);
+  while(nextLen>1){
+    state.bracket.push(Array(nextLen).fill(null).map(()=>({p1:null,p2:null,w:null})));
+    nextLen = Math.ceil(nextLen/2);
+  }
+  state.bracket.push([{p1:null,p2:null,w:null}]);
+
+  if(bye && state.bracket[1][0]){
+    if(!state.bracket[1][0].p1) state.bracket[1][0].p1 = bye;
+    else state.bracket[1][0].p2 = bye;
+  }
+
+  state.started=true;
+  await saveState(); renderBracket();
+  document.getElementById('bracketCard').style.display='block';
+  document.getElementById('matchCard').style.display='none';
+}
+
+function renderBracket(){
+  document.getElementById('bracketCard').style.display='block';
+  const html = state.bracket.map((round,rIdx)=>{
+    if(round.length===0) return '';
+    return `
+      <div class="bracket-round">
+        ${round.map((m,mIdx)=>renderBracketMatch(m,rIdx,mIdx)).join('')}
+      </div>
+    `
+  }).filter(h=>h).join('');
+  document.getElementById('bracket').innerHTML = html;
+}
+
+function renderBracketMatch(m,rIdx,mIdx){
+  const p1 = m.p1 || '';
+  const p2 = m.p2 || '';
+  const w = m.w;
+  const canClick =!w && p1 && p2;
+  if(!p1 &&!p2) return '';
+  const p1Class = w===p1? 'winner' : w===p2? 'loser' : '';
+  const p2Class = w===p2? 'winner' : w===p1? 'loser' : '';
+  return `<div class="bracket-match ${w?'winner':''}">
+    <div class="bracket-player ${p1Class} ${canClick?'clickable':''}" onclick="${canClick?`setWinner(${rIdx},${mIdx},'${p1}')`:''}">${p1}</div>
+    <div class="bracket-player ${p2Class} ${canClick?'clickable':''}" onclick="${canClick?`setWinner(${rIdx},${mIdx},'${p2}')`:''}">${p2}</div>
+  </div>`
+}
+
+async function setWinner(rIdx,mIdx,winner){
+  const m = state.bracket[rIdx][mIdx];
+  if(m.w) return;
+  m.w = winner;
+  const nextR = rIdx+1;
+  if(state.bracket[nextR] && state.bracket[nextR][Math.floor(mIdx/2)]){
+    const nextM = state.bracket[nextR][Math.floor(mIdx/2)];
+    if(mIdx%2===0) nextM.p1 = winner; else nextM.p2 = winner;
+  }
+  await saveState(); renderBracket();
+
+  const final = state.bracket[state.bracket.length-1][0];
+  if(final && final.w){
+    document.getElementById('podiumCard').style.display='block';
+    document.getElementById('podium').innerHTML = `
+      <div class="podium-card gold"><div class="rank">🥇</div><div class="name">${final.w}</div><div class="pts">冠軍</div></div>
+    `;
+  }
 }
 
 function genQR(){
