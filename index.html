@@ -45,7 +45,7 @@
 .bracket{display:flex;gap:16px;overflow-x:auto;padding:12px 0}
 .bracket-round{display:flex;flex-direction:column;gap:12px;min-width:220px}
 .bracket-match{background:#334155;padding:10px;border-radius:8px;border:1px solid #475569}
-.bracket-match.winner{border-color:#22c55e}
+.bracket-match.winner{border:2px solid #22c55e}
 .bracket-player{padding:10px 12px;border-radius:6px;margin:4px 0;background:#1e293b;text-align:center;font-weight:600}
 .bracket-player.loser{opacity:0.35;text-decoration:line-through}
 .bracket-player.bye{background:#0f172a;border:1px dashed #475569;color:#22c55e}
@@ -185,7 +185,6 @@ async function startTournament(){
   if(state.mode==='single') return startSingle();
 }
 
-// 瑞士制
 async function startSwiss(){
   state.started=true;
   state.round=1;
@@ -204,7 +203,7 @@ function generateSwissMatches(){
     for(let j=i+1;j<alive.length;j++){
       if(paired.has(j)) continue;
       if(!alive[i].opponents.includes(alive[j].name)){
-        matches.push([alive[i],alive[j]]);paired.add(i);paired.add(j);break;
+        matches.push({p1:alive[i],p2:alive[j],s1:0,s2:0});paired.add(i);paired.add(j);break;
       }
     }
   }
@@ -212,31 +211,38 @@ function generateSwissMatches(){
     alive[alive.length-1].total+=3;alive[alive.length-1].win+=1;
   }
   window.currentMatches=matches;
+  state.currentMatches=matches; // 存起來避免重刷被洗掉
 }
 
 function renderSwissMatches(){
-  document.getElementById('matches').innerHTML = window.currentMatches.map((m,i)=>
+  document.getElementById('matchCard').style.display='block';
+  document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
+  document.getElementById('matches').innerHTML = state.currentMatches.map((m,i)=>
     `<div class="match">
       <div class="score-row">
-        <span>${m[0].name}</span><span class="vs">VS</span><span>${m[1].name}</span>
-        <input id="s${i}0" type="number" min="0" max="6" value="0" placeholder="0-6">
+        <span>${m.p1.name}</span><span class="vs">VS</span><span>${m.p2.name}</span>
+        <input id="s${i}0" type="number" min="0" max="6" value="${m.s1||0}" placeholder="0-6" onchange="updateScore(${i},0,this.value)">
         <span class="vs">分</span>
-        <input id="s${i}1" type="number" min="0" max="6" value="0" placeholder="0-6">
+        <input id="s${i}1" type="number" min="0" max="6" value="${m.s2||0}" placeholder="0-6" onchange="updateScore(${i},1,this.value)">
       </div>
       <div class="pts">輸入該場得分 0-6，先累積4分者獲勝</div>
     </div>`
   ).join('');
 }
 
+function updateScore(i,side,val){
+  state.currentMatches[i][side===0?'s1':'s2'] = Math.min(6,Math.max(0,parseInt(val)||0));
+}
+
 async function nextRound(){
-  window.currentMatches.forEach((m,i)=>{
-    const s0=Math.min(6,Math.max(0,parseInt(document.getElementById(`s${i}0`).value)||0));
-    const s1=Math.min(6,Math.max(0,parseInt(document.getElementById(`s${i}1`).value)||0));
+  state.currentMatches.forEach(m=>{
+    const s0=Math.min(6,Math.max(0,m.s1||0));
+    const s1=Math.min(6,Math.max(0,m.s2||0));
     if(s0||s1){
-      m[0].total+=s0;m[1].total+=s1;
-      if(s0>s1){m[0].win++;m[1].lose++;}else if(s1>s0){m[1].win++;m[0].lose++;}
-      if(!m[0].opponents.includes(m[1].name)) m[0].opponents.push(m[1].name);
-      if(!m[1].opponents.includes(m[0].name)) m[1].opponents.push(m[0].name);
+      m.p1.total+=s0;m.p2.total+=s1;
+      if(s0>s1){m.p1.win++;m.p2.lose++;}else if(s1>s0){m.p2.win++;m.p1.lose++;}
+      if(!m.p1.opponents.includes(m.p2.name)) m.p1.opponents.push(m.p2.name);
+      if(!m.p2.opponents.includes(m.p1.name)) m.p2.opponents.push(m.p1.name);
     }
   });
   state.players.forEach(p=>{p.buchholz=p.opponents.reduce((s,n)=>s+(state.players.find(x=>x.name==n)?.total||0),0);});
@@ -316,6 +322,7 @@ async function setWinner(rIdx,mIdx,winner){
   const m = state.bracket;
   if(m.w) return;
   m.w = winner;
+
   const nextR = rIdx+1;
   if(state.bracket[nextR] && state.bracket[nextR][Math.floor(mIdx/2)]){
     const nextM = state.bracket[nextR][Math.floor(mIdx/2)];
