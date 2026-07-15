@@ -8,36 +8,23 @@
 <style>
   *{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"微軟正黑體",sans-serif}
   body{margin:0;padding:16px;color:#fff;position:relative;min-height:100vh;background:#0a0f1a}
-  body::before{
-    content:"";position:fixed;top:0;left:0;width:100%;height:100%;
-    background-repeat:repeat;background-position:center;
-    filter:brightness(0.6) saturate(1.15);z-index:-1
-  }
+  body::before{content:"";position:fixed;top:0;left:0;width:100%;height:100%;background-size:contain;background-repeat:repeat;background-position:center;filter:brightness(0.6) saturate(1.15);z-index:-1}
   body.has-bg::before{background-image:var(--bg);}
-
   h2{margin:0 0 12px;font-size:28px;font-weight:900;letter-spacing:1px;text-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer}
   h2:active{transform:scale(.98)}
-
 .card{background:#1e293b/65;border-radius:14px;padding:16px;margin-bottom:12px;backdrop-filter:blur(4px);border:1px solid #334155}
-
   input,button,select{width:100%;padding:12px;border-radius:8px;border:none;margin:6px 0;font-size:16px}
   input,select{background:#334155;color:#fff;text-align:center}
   button{background:#3b82f6;color:#fff;font-weight:600}
   button.danger{background:#ef4444}
   button.ghost{background:#475569;padding:6px 10px;font-size:13px;width:auto}
   button:disabled{background:#475569}
-
-.player{
-    display:flex;justify-content:space-between;align-items:center;
-    padding:12px 14px;border-radius:10px;margin:6px 0;
-    background:#0f172a/80;backdrop-filter:blur(8px);border:1px solid #334155
-  }
+.player{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:10px;margin:6px 0;background:#0f172a/80;backdrop-filter:blur(8px);border:1px solid #334155}
 .player-info{display:flex;flex-direction:column;gap:4px}
 .player-name{font-size:18px;font-weight:600;letter-spacing:0.5px}
 .player-stat{font-size:16px;color:#facc15;font-weight:700;letter-spacing:0.3px}
 .player-btns{display:flex;gap:6px}
 .player-btns button{width:auto;padding:6px 12px;font-size:14px;font-weight:600}
-
 .podium{display:flex;justify-content:center;align-items:end;gap:8px;margin:16px 0}
 .podium-card{width:30%;padding:12px;border-radius:12px;text-align:center;font-weight:700}
 .podium-card.gold{background:linear-gradient(180deg,#ffd700,#f4c430);color:#000}
@@ -46,7 +33,6 @@
 .podium-card.rank{font-size:32px;margin-bottom:4px}
 .podium-card.name{font-size:16px;margin-bottom:4px}
 .podium-card.pts{font-size:14px;opacity:.9}
-
 .match{background:#334155;padding:12px;border-radius:8px;margin:8px 0}
 .score-row{display:grid;grid-template-columns:1fr 50px 1fr;gap:8px;align-items:center;margin:8px 0}
 .vs{color:#94a3b8;font-size:14px;text-align:center}
@@ -55,6 +41,7 @@
 .row input{flex:1}
 .qr-wrap{display:flex;justify-content:center;margin:12px 0}
 .qr{padding:8px;background:#fff;border-radius:8px}
+.loading{color:#94a3b8;text-align:center;padding:20px}
 </style>
 </head>
 <body>
@@ -65,10 +52,10 @@
     <input id="pName" placeholder="輸入選手名字">
     <button onclick="addPlayer()" style="width:auto">加入</button>
   </div>
-  <div id="players"></div>
+  <div id="players"><div class="loading">讀取中...</div></div>
 
   <div class="row" style="margin-top:10px">
-    <select id="totalRounds">
+    <select id="totalRounds" onchange="changeRounds()">
       <option value="3">共3輪</option>
       <option value="4" selected>共4輪</option>
       <option value="5">共5輪</option>
@@ -97,43 +84,33 @@
 </div>
 
 <script>
-let players = JSON.parse(localStorage.getItem('players')||'[]');
-let round = parseInt(localStorage.getItem('round')||'0');
-let totalRounds = parseInt(localStorage.getItem('totalRounds')||'4');
-let bgUrl = localStorage.getItem('bgUrl')||'';
-let title = localStorage.getItem('title')||'🏆 Beyblade X 瑞士制';
+const ROOM_ID = location.pathname.split('/').pop() || 'default';
+let state = {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 瑞士制',bgUrl:''};
 
-document.getElementById('title').textContent = title;
-if(bgUrl){document.body.style.setProperty('--bg',`url(${bgUrl})`);document.body.classList.add('has-bg');}
-
-function editTitle(){
-  const newTitle = prompt('修改比賽名稱:',title);
-  if(newTitle && newTitle.trim()){
-    title=newTitle.trim();
-    localStorage.setItem('title',title);
-    document.getElementById('title').textContent=title;
-  }
+async function loadState(){
+  try{
+    const res = await fetch(`/api/state?room=${ROOM_ID}`);
+    if(res.ok) state = await res.json();
+  }catch(e){console.log('載入失敗',e)}
+  applyState();
 }
 
-document.body.ondblclick=(e)=>{
-  if(e.target!==document.body) return;
-  const url=prompt('貼上背景圖片網址:');
-  if(url){
-    localStorage.setItem('bgUrl',url);
-    document.body.style.setProperty('--bg',`url(${url})`);
-    document.body.classList.add('has-bg');
-  }
-};
-
-function save(){
-  localStorage.setItem('players',JSON.stringify(players));
-  localStorage.setItem('round',round);
-  localStorage.setItem('totalRounds',totalRounds);
+async function saveState(){
+  try{
+    await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
+    console.log('儲存成功');
+  }catch(e){console.log('儲存失敗',e)}
 }
 
-// 排序: 勝場 > 敗場少 > 積分 > 對手總分
+function applyState(){
+  document.getElementById('title').textContent = state.title;
+  document.getElementById('totalRounds').value = state.totalRounds;
+  if(state.bgUrl){document.body.style.setProperty('--bg',`url(${state.bgUrl})`);document.body.classList.add('has-bg');}
+  renderPlayers();
+}
+
 function sortPlayers(){
-  return players.sort((a,b)=>{
+  return state.players.sort((a,b)=>{
     if(b.win!== a.win) return b.win - a.win;
     if(a.lose!== b.lose) return a.lose - b.lose;
     if(b.total!== a.total) return b.total - a.total;
@@ -143,7 +120,7 @@ function sortPlayers(){
 
 function renderPlayers(){
   sortPlayers();
-  document.getElementById('players').innerHTML = players.map((p,i)=>
+  document.getElementById('players').innerHTML = state.players.map((p,i)=>
     `<div class="player">
       <div class="player-info">
         <span class="player-name">${i+1}. ${p.name}</span>
@@ -154,64 +131,67 @@ function renderPlayers(){
         <button class="danger" onclick="delPlayer(${i})">刪</button>
       </div>
     </div>`
-  ).join('');
+  ).join('') || '<div class="loading">還沒人報名</div>';
 
-  const finished=round>=totalRounds;
-  document.getElementById('startBtn').disabled = players.length<4 || finished;
-  document.getElementById('startBtn').textContent=finished?'查看排名':`開始第${round+1}輪`;
-
+  const finished=state.round>=state.totalRounds;
+  document.getElementById('startBtn').disabled = state.players.length<4 || finished;
+  document.getElementById('startBtn').textContent=finished?'查看排名':`開始第${state.round+1}輪`;
   if(finished) showPodium();
   genQR();
 }
 
-function addPlayer(){
+async function addPlayer(){
   const name = document.getElementById('pName').value.trim();
-  if(!name||players.find(p=>p.name===name)) return;
-  players.push({name,total:0,win:0,lose:0,buchholz:0,opponents:[]});
+  if(!name||state.players.find(p=>p.name===name)) return;
+  state.players.push({name,total:0,win:0,lose:0,buchholz:0,opponents:[]});
   document.getElementById('pName').value='';
-  save(); renderPlayers();
+  await saveState(); renderPlayers();
 }
 
-function editPlayer(i){
-  const newName = prompt('修改選手名字:',players[i].name);
-  if(newName && newName.trim()) {players[i].name=newName.trim();save();renderPlayers();}
+async function editPlayer(i){
+  const newName = prompt('修改選手名字:',state.players[i].name);
+  if(newName && newName.trim()) {state.players[i].name=newName.trim();await saveState();renderPlayers();}
 }
 
-function delPlayer(i){
-  if(confirm(`確定刪除 ${players[i].name}？`)){players.splice(i,1);save();renderPlayers();}
+async function delPlayer(i){
+  if(confirm(`確定刪除 ${state.players[i].name}？`)){state.players.splice(i,1);await saveState();renderPlayers();}
 }
 
-function resetTournament(){
+async function resetTournament(){
   if(confirm('確定重開賽程？所有成績會清空')){
-    players.forEach(p=>{p.total=0;p.win=0;p.lose=0;p.buchholz=0;p.opponents=[]});
-    round=0; save(); renderPlayers();
+    state.players.forEach(p=>{p.total=0;p.win=0;p.lose=0;p.buchholz=0;p.opponents=[]});
+    state.round=0; await saveState(); renderPlayers();
     document.getElementById('matchCard').style.display='none';
     document.getElementById('podiumCard').style.display='none';
   }
 }
 
-function startRound(){
-  if(round>=totalRounds) return showPodium();
-  totalRounds=parseInt(document.getElementById('totalRounds').value);
-  round++; save();
+async function changeRounds(){
+  state.totalRounds = parseInt(document.getElementById('totalRounds').value);
+  await saveState();
+}
+
+async function startRound(){
+  if(state.round>=state.totalRounds) return showPodium();
+  state.round++;
   sortPlayers();
   const matches=[]; const paired=new Set();
-  for(let i=0;i<players.length;i++){
+  for(let i=0;i<state.players.length;i++){
     if(paired.has(i)) continue;
-    for(let j=i+1;j<players.length;j++){
+    for(let j=i+1;j<state.players.length;j++){
       if(paired.has(j)) continue;
-      if(!players[i].opponents.includes(players[j].name)){
-        matches.push([players[i],players[j]]);paired.add(i);paired.add(j);break;
+      if(!state.players[i].opponents.includes(state.players[j].name)){
+        matches.push([state.players[i],state.players[j]]);paired.add(i);paired.add(j);break;
       }
     }
   }
-  if(players.length%2===1 &&!paired.has(players.length-1)){
-    players[players.length-1].total+=3;players[players.length-1].win+=1;
+  if(state.players.length%2===1 &&!paired.has(state.players.length-1)){
+    state.players[state.players.length-1].total+=3;state.players[state.players.length-1].win+=1;
   }
   window.currentMatches=matches;
   document.getElementById('matchCard').style.display='block';
-  document.getElementById('roundTitle').textContent=`第${round}輪 / 共${totalRounds}輪`;
-  renderMatches(); save();
+  document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
+  renderMatches(); await saveState();
 }
 
 function renderMatches(){
@@ -228,7 +208,7 @@ function renderMatches(){
   ).join('');
 }
 
-function nextRound(){
+async function nextRound(){
   window.currentMatches.forEach((m,i)=>{
     const s0=Math.min(6,Math.max(0,parseInt(document.getElementById(`s${i}0`).value)||0));
     const s1=Math.min(6,Math.max(0,parseInt(document.getElementById(`s${i}1`).value)||0));
@@ -239,8 +219,8 @@ function nextRound(){
       if(!m[1].opponents.includes(m[0].name)) m[1].opponents.push(m[0].name);
     }
   });
-  players.forEach(p=>{p.buchholz=p.opponents.reduce((s,n)=>s+(players.find(x=>x.name==n)?.total||0),0);});
-  save(); renderPlayers(); document.getElementById('matchCard').style.display='none';
+  state.players.forEach(p=>{p.buchholz=p.opponents.reduce((s,n)=>s+(state.players.find(x=>x.name==n)?.total||0),0);});
+  await saveState(); renderPlayers(); document.getElementById('matchCard').style.display='none';
 }
 
 function showPodium(){
@@ -255,13 +235,29 @@ function showPodium(){
 }
 
 function genQR(){
-  const url=location.href.split('?')[0];
+  const url=location.href;
   document.getElementById('urlText').textContent=url;
   document.getElementById('qrcode').innerHTML='';
   new QRCode(document.getElementById('qrcode'),{text:url,width:140,height:140});
 }
 
-renderPlayers();
+async function editTitle(){
+  const newTitle = prompt('修改比賽名稱:',state.title);
+  if(newTitle && newTitle.trim()){
+    state.title = newTitle.trim();
+    await saveState();
+    applyState();
+  }
+}
+
+document.body.ondblclick=(e)=>{
+  if(e.target!==document.body) return;
+  const url=prompt('貼上背景圖片網址:');
+  if(url){state.bgUrl=url;saveState();applyState();}
+}
+
+loadState();
+setInterval(loadState,5000);
 </script>
 </body>
 </html>
