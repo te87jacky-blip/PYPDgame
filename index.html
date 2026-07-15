@@ -24,6 +24,14 @@
 .player-stat{font-size:16px;color:#facc15;font-weight:700;letter-spacing:0.3px}
 .player-btns{display:flex;gap:6px}
 .player-btns button{width:auto;padding:6px 12px;font-size:14px;font-weight:600}
+.podium{display:flex;justify-content:center;align-items:end;gap:8px;margin:16px 0}
+.podium-card{width:30%;padding:12px;border-radius:12px;text-align:center;font-weight:700}
+.podium-card.gold{background:linear-gradient(180deg,#ffd700,#f4c430);color:#000}
+.podium-card.silver{background:linear-gradient(180deg,#e8e8e8,#c0c0c0);color:#000}
+.podium-card.bronze{background:linear-gradient(180deg,#cd7f32,#b8860b);color:#fff}
+.podium-card.rank{font-size:32px;margin-bottom:4px}
+.podium-card.name{font-size:16px;margin-bottom:4px}
+.podium-card.pts{font-size:14px;opacity:.9}
 .match{background:#334155;padding:12px;border-radius:8px;margin:8px 0}
 .score-row{display:grid;grid-template-columns:1fr 50px 1fr;gap:8px;align-items:center;margin:8px 0}
 .vs{color:#94a3b8;font-size:14px;text-align:center}
@@ -134,10 +142,10 @@ function renderPlayers(){
   ).join('') || '<div class="loading">還沒人報名</div>';
 
   const finished = state.mode==='swiss'? state.round>=state.totalRounds : state.bracket.length>0 && state.bracket[state.bracket.length-1][0]?.w;
-  document.getElementById('startBtn').disabled = state.players.length<4 || state.started;
-  document.getElementById('startBtn').textContent = finished?'查看排名':'開始比賽';
+  document.getElementById('startBtn').disabled = state.players.length<4 || state.started || finished;
+  document.getElementById('startBtn').textContent = finished?'查看排名':state.mode==='swiss'?`開始第${state.round+1}輪`:'開始比賽';
 
-  if(state.mode==='swiss' && state.round>0 && state.started) renderSwissMatches();
+  if(state.mode==='swiss' && state.round>0 && state.started &&!finished) renderSwissMatches();
   if(state.mode==='single' && state.started) renderBracket();
   if(finished && state.mode==='swiss') showPodium();
   genQR();
@@ -194,12 +202,13 @@ function generateSwissMatches(){
     for(let j=i+1;j<alive.length;j++){
       if(paired.has(j)) continue;
       if(!alive[i].opponents.includes(alive[j].name)){
-        matches.push({p1:alive[i],p2:alive[j],s1:0,s2:0});paired.add(i);paired.add(j);break;
+        matches.push({p1:alive[i].name,p2:alive[j].name,s1:0,s2:0});paired.add(i);paired.add(j);break;
       }
     }
   }
   if(alive.length%2===1 &&!paired.has(alive.length-1)){
-    alive[alive.length-1].total+=3;alive[alive.length-1].win+=1;
+    const bye = alive[alive.length-1];
+    bye.total+=3;bye.win+=1;
   }
   state.currentMatches=matches;
 }
@@ -210,7 +219,7 @@ function renderSwissMatches(){
   document.getElementById('matches').innerHTML = state.currentMatches.map((m,i)=>
     `<div class="match">
       <div class="score-row">
-        <span>${m.p1.name}</span><span class="vs">VS</span><span>${m.p2.name}</span>
+        <span>${m.p1}</span><span class="vs">VS</span><span>${m.p2}</span>
         <input id="s${i}0" type="number" min="0" max="6" value="${m.s1}" placeholder="0-6" oninput="updateScore(${i},0,this.value)">
         <span class="vs">分</span>
         <input id="s${i}1" type="number" min="0" max="6" value="${m.s2}" placeholder="0-6" oninput="updateScore(${i},1,this.value)">
@@ -224,25 +233,36 @@ function updateScore(i,side,val){
   const num = Math.min(6,Math.max(0,parseInt(val)||0));
   if(side===0) state.currentMatches[i].s1 = num;
   else state.currentMatches[i].s2 = num;
-  saveState(); // 即時存，不等提交
+  saveState();
 }
 
 async function nextRound(){
+  // 超過輪數就擋住
+  if(state.round>=state.totalRounds) return;
+
   state.currentMatches.forEach(m=>{
-    const s0=m.s1||0, s1=m.s2||0;
+    const s0=Math.min(6,Math.max(0,m.s1||0));
+    const s1=Math.min(6,Math.max(0,m.s2||0));
     if(s0||s1){
-      m.p1.total+=s0;m.p2.total+=s1;
-      if(s0>s1){m.p1.win++;m.p2.lose++;}else if(s1>s0){m.p2.win++;m.p1.lose++;}
-      if(!m.p1.opponents.includes(m.p2.name)) m.p1.opponents.push(m.p2.name);
-      if(!m.p2.opponents.includes(m.p1.name)) m.p2.opponents.push(m.p1.name);
+      const p1 = state.players.find(p=>p.name===m.p1);
+      const p2 = state.players.find(p=>p.name===m.p2);
+      p1.total+=s0;p2.total+=s1;
+      if(s0>s1){p1.win++;p2.lose++;}else if(s1>s0){p2.win++;p1.lose++;}
+      if(!p1.opponents.includes(p2.name)) p1.opponents.push(p2.name);
+      if(!p2.opponents.includes(p1.name)) p2.opponents.push(p1.name);
     }
   });
   state.players.forEach(p=>{p.buchholz=p.opponents.reduce((s,n)=>s+(state.players.find(x=>x.name==n)?.total||0),0);});
   state.round++;
-  if(state.round<=state.totalRounds) generateSwissMatches();
-  await saveState(); renderPlayers();
-  if(state.round<=state.totalRounds) renderSwissMatches();
-  else document.getElementById('matchCard').style.display='none';
+
+  if(state.round<=state.totalRounds){
+    generateSwissMatches();
+    await saveState(); renderPlayers(); renderSwissMatches();
+  }else{
+    await saveState(); renderPlayers();
+    document.getElementById('matchCard').style.display='none';
+    showPodium();
+  }
 }
 
 function showPodium(){
