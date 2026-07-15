@@ -42,11 +42,6 @@
 .qr{padding:8px;background:#fff;border-radius:8px}
 .loading{color:#94a3b8;text-align:center;padding:20px}
 .label{font-size:12px;color:#94a3b8;margin-bottom:4px}
-.rr-table{width:100%;border-collapse:collapse;margin-top:8px}
-.rr-table th,.rr-table td{border:1px solid #475569;padding:8px;text-align:center;font-size:14px}
-.rr-table th{background:#334155}
-.rr-win{color:#22c55e;font-weight:700}
-.rr-lose{color:#ef4444}
 </style>
 </head>
 <body>
@@ -84,7 +79,7 @@
 
 <div class="card" id="bracketCard" style="display:none">
   <h2 id="bracketTitle">賽程表</h2>
-  <div id="bracket"></div>
+  <div id="bracket" class="bracket"></div>
 </div>
 
 <div class="card">
@@ -95,7 +90,7 @@
 
 <script>
 const ROOM_ID = location.pathname.split('/').pop() || 'default';
-let state = {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 賽事系統',bgUrl:'',mode:'swiss',bracket:{w:[],l:[],final:[],rr:[],rrDone:false}};
+let state = {players:[],round:0,totalRounds:4,title:'🏆 Beyblade X 賽事系統',bgUrl:'',mode:'swiss',bracket:{w:[],l:[],final:[],rr:[],rrDone:false},currentMatches:[]};
 
 async function loadState(){
   try{
@@ -171,7 +166,7 @@ async function delPlayer(i){
 
 async function resetTournament(){
   if(confirm('確定重開賽程？所有成績會清空')){
-    state={players:state.players.map(p=>({...p,total:0,win:0,lose:0,buchholz:0,opponents:[],alive:true})),round:0,totalRounds:state.totalRounds,title:state.title,bgUrl:state.bgUrl,mode:state.mode,bracket:{w:[],l:[],final:[],rr:[],rrDone:false}};
+    state={players:state.players.map(p=>({...p,total:0,win:0,lose:0,buchholz:0,opponents:[],alive:true})),round:0,totalRounds:state.totalRounds,title:state.title,bgUrl:state.bgUrl,mode:state.mode,bracket:{w:[],l:[],final:[],rr:[],rrDone:false},currentMatches:[]};
     await saveState(); renderPlayers();
     document.getElementById('matchCard').style.display='none';
     document.getElementById('bracketCard').style.display='none';
@@ -196,16 +191,20 @@ async function startTournament(){
 
 // 瑞士制
 async function startSwiss(){
-  state.round=1; await saveState();
+  state.round=1;
   generateSwissMatches();
+  await saveState();
   document.getElementById('matchCard').style.display='block';
   document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
-  renderSwissMatches(); await saveState();
+  renderSwissMatches();
+}
+
+function shuffle(arr){
+  return arr.sort(()=>Math.random()-0.5);
 }
 
 function generateSwissMatches(){
-  sortPlayers();
-  const alive = state.players.filter(p=>p.alive);
+  const alive = shuffle(state.players.filter(p=>p.alive));
   const matches=[]; const paired=new Set();
   for(let i=0;i<alive.length;i++){
     if(paired.has(i)) continue;
@@ -219,13 +218,13 @@ function generateSwissMatches(){
   if(alive.length%2===1 &&!paired.has(alive.length-1)){
     alive[alive.length-1].total+=3;alive[alive.length-1].win+=1;
   }
-  window.currentMatches=matches;
+  state.currentMatches=matches;
 }
 
 function renderSwissMatches(){
   document.getElementById('matchCard').style.display='block';
   document.getElementById('roundTitle').textContent=`第${state.round}輪 / 共${state.totalRounds}輪`;
-  document.getElementById('matches').innerHTML = window.currentMatches.map((m,i)=>
+  document.getElementById('matches').innerHTML = state.currentMatches.map((m,i)=>
     `<div class="match">
       <div class="score-row">
         <span>${m[0].name}</span><span class="vs">VS</span><span>${m[1].name}</span>
@@ -239,13 +238,33 @@ function renderSwissMatches(){
 }
 
 async function nextRound(){
-  if(state.mode==='swiss') await nextSwissRound();
-  if(state.mode==='single' || state.mode==='double') await nextBracketRound();
+  state.currentMatches.forEach((m,i)=>{
+    const s0=Math.min(6,Math.max(0,parseInt(document.getElementById(`s${i}0`).value)||0));
+    const s1=Math.min(6,Math.max(0,parseInt(document.getElementById(`s${i}1`).value)||0));
+    if(s0||s1){
+      m[0].total+=s0;m[1].total+=s1;
+      if(s0>s1){m[0].win++;m[1].lose++;}else if(s1>s0){m[1].win++;m[0].lose++;}
+      if(!m[0].opponents.includes(m[1].name)) m[0].opponents.push(m[1].name);
+      if(!m[1].opponents.includes(m[0].name)) m[1].opponents.push(m[0].name);
+    }
+  });
+  state.players.forEach(p=>{p.buchholz=p.opponents.reduce((s,n)=>s+(state.players.find(x=>x.name==n)?.total||0),0);});
+  state.round++;
+
+  if(state.round<=state.totalRounds && state.mode==='swiss'){
+    generateSwissMatches();
+    renderSwissMatches();
+  }else{
+    document.getElementById('matchCard').style.display='none';
+  }
+  await saveState(); renderPlayers();
 }
 
 // 單淘汰/雙淘汰
 async function startSingle(){
-  const alive = state.players.filter(p=>p.alive);
+  let alive = shuffle(state.players.filter(p=>p.alive));
+  // 奇數補BYE
+  if(alive.length%2===1) alive.push({name:'BYE',alive:true,total:0,win:0,lose:0});
   state.bracket.w = generateBracketRound(alive.map(p=>p.name));
   state.bracket.final = [];
   await saveState(); renderBracket();
@@ -253,27 +272,27 @@ async function startSingle(){
 }
 
 function generateBracketRound(players){
-  let round=[];
+  let round = [];
   let current = [...players];
-  // 奇數補BYE
-  if(current.length%2===1){
-    round.push([{p1:current.pop(),p2:'BYE',w:null}]);
+  // 第一輪隨機配對
+  current = shuffle(current);
+  let m=[];
+  for(let i=0;i<current.length;i+=2){
+    m.push({p1:current[i],p2:current[i+1],w:current[i+1]==='BYE'?current[i]:null});
   }
-  while(current.length>1){
-    const m=[];
-    for(let i=0;i<current.length;i+=2){
-      m.push({p1:current[i],p2:current[i+1],w:null});
-    }
-    round.push(m);
-    current = Array(m.length).fill(null);
-  }
+  round.push(m);
+
+  // 後續輪空陣
+  let next = Array(Math.ceil(current.length/2)).fill(null);
+  round.push(next.map(() => ({p1:null,p2:null,w:null})));
   return round;
 }
 
 async function startDouble(){
-  const alive = state.players.filter(p=>p.alive);
+  let alive = shuffle(state.players.filter(p=>p.alive));
+  if(alive.length%2===1) alive.push({name:'BYE',alive:true,total:0,win:0,lose:0});
   state.bracket.w = generateBracketRound(alive.map(p=>p.name));
-  state.bracket.l = [[]]; // 敗部第一輪空
+  state.bracket.l = [[]];
   state.bracket.final = [];
   await saveState(); renderBracket();
   document.getElementById('bracketCard').style.display='block';
@@ -308,7 +327,6 @@ function renderBracket(){
     html += `<div class="label" style="margin-top:12px">冠軍賽</div>`;
     html += state.bracket.final.map((m,i)=>renderBracketMatch(m,0,i,'f')).join('');
   }
-
   document.getElementById('bracket').innerHTML = html;
 }
 
@@ -344,7 +362,6 @@ async function setWinner(type,rIdx,mIdx,winner){
     if(loser!=='BYE'){
       if(!state.bracket.l[rIdx]) state.bracket.l[rIdx]=[];
       state.bracket.l[rIdx].push({p1:loser,p2:null,w:null});
-      // 整理敗部配對
       organizeLoserBracket(rIdx);
     }
   }
@@ -355,31 +372,37 @@ async function setWinner(type,rIdx,mIdx,winner){
 }
 
 function organizeLoserBracket(rIdx){
-  const lRound = state.bracket.l[rIdx].filter(m=>m.p2!==null);
-  if(lRound.length%2===1){
-    lRound.push({p1:lRound.pop().p1,p2:'BYE',w:null});
-  }
-  // 配對下一輪
+  let losers = state.bracket.l[rIdx]?.filter(m=>m.w).map(m=>m.w) || [];
+  const byeLosers = state.bracket.w[rIdx]?.filter(m=>m.p2==='BYE' && m.w===m.p1).map(m=>m.p2) || [];
+  losers = [...losers,...byeLosers];
+  if(losers.length===0) return;
+
   const nextR = rIdx+1;
   if(!state.bracket.l[nextR]) state.bracket.l[nextR]=[];
-  for(let i=0;i<lRound.length;i+=2){
-    if(lRound[i+1]){
-      state.bracket.l[nextR].push({p1:lRound[i].w,p2:lRound[i+1].w,w:null});
-    }
+  for(let i=0;i<losers.length;i+=2){
+    if(losers[i+1]) state.bracket.l[nextR].push({p1:losers[i],p2:losers[i+1],w:null});
   }
 }
 
 function checkForRoundRobin(){
-  const alive = state.players.filter(p=>p.alive).length;
-  if(alive===3 &&!state.bracket.rrDone){
-    state.bracket.rr = state.players.filter(p=>p.alive).map(p=>p.name);
+  const aliveW = state.bracket.w[state.bracket.w.length-1]?.filter(m=>m.w).map(m=>m.w) || [];
+  const aliveL = state.bracket.l[state.bracket.l.length-1]?.filter(m=>m.w).map(m=>m.w) || [];
+  const alive = [...aliveW,...aliveL].filter((v,i,self)=>self.indexOf(v)===i);
+
+  if(alive.length===3 &&!state.bracket.rrDone){
+    state.bracket.rr = alive;
     state.bracket.rrDone = true;
+    // 初始化循環賽對戰
+    state.currentMatches = [[alive[0],alive[1]],[alive[1],alive[2]],[alive[0],alive[2]]];
+    document.getElementById('matchCard').style.display='block';
+    document.getElementById('roundTitle').textContent=`三人循環賽`;
+    renderSwissMatches();
   }
   // 雙淘汰勝部冠軍產生後打總冠軍賽
-  if(state.mode==='double' && state.bracket.w[state.bracket.w.length-1]?.[0]?.w){
+  if(state.mode==='double' && state.bracket.w[state.bracket.w.length-1]?.[0]?.w && state.bracket.l[state.bracket.l.length-1]?.[0]?.w){
     const wWinner = state.bracket.w[state.bracket.w.length-1][0].w;
-    const lWinner = state.bracket.l[state.bracket.l.length-1]?.[0]?.w;
-    if(wWinner && lWinner &&!state.bracket.final[0]){
+    const lWinner = state.bracket.l[state.bracket.l.length-1][0].w;
+    if(!state.bracket.final[0]){
       state.bracket.final.push({p1:wWinner,p2:lWinner,w:null});
     }
   }
@@ -400,21 +423,6 @@ function renderRoundRobin(){
   });
   html += `</table>`;
   return html;
-}
-
-async function nextBracketRound(){
-  // 自動推進BYE
-  state.bracket.w.forEach(round=>{
-    round.forEach(m=>{
-      if(m.p2==='BYE' &&!m.w) m.w=m.p1;
-    });
-  });
-  state.bracket.l.forEach(round=>{
-    round.forEach(m=>{
-      if(m.p2==='BYE' &&!m.w) m.w=m.p1;
-    });
-  });
-  await saveState(); renderBracket();
 }
 
 async function editTitle(){
