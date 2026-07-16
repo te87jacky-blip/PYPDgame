@@ -11,14 +11,14 @@
   body::before{content:"";position:fixed;top:0;left:0;width:100%;height:100%;background-repeat:repeat;background-position:center;filter:brightness(0.6) saturate(1.15);z-index:-1}
   body.has-bg::before{background-image:var(--bg);}
   h2{margin:0 0 10px;font-size:24px;font-weight:900;letter-spacing:1px;text-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer}
-.card{background:rgba(15,23,42,0.65);border-radius:14px;padding:14px;margin-bottom:10px;backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.08)}
+.card{background:rgba(15,23,42,0.45);border-radius:14px;padding:14px;margin-bottom:10px;backdrop-filter:blur(3px);border:1px solid rgba(255,255,255,0.06)}
   input,button,select{width:100%;padding:14px;border-radius:10px;border:none;margin:5px 0;font-size:16px}
   input,select{background:#334155;color:#fff;text-align:center}
   button{background:#3b82f6;color:#fff;font-weight:600;min-height:48px}
   button.danger{background:#ef4444}
   button.ghost{background:#475569;padding:8px 12px;font-size:14px;width:auto;min-height:40px}
   button:disabled{background:#475569;opacity:0.6}
-.player{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:12px;margin:6px 0;background:rgba(15,23,42,0.8);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.08)}
+.player{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:12px;margin:6px 0;background:rgba(15,23,42,0.6);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.06)}
 .player-info{display:flex;flex-direction:column;gap:4px}
 .player-name{font-size:17px;font-weight:600}
 .player-stat{font-size:15px;color:#facc15;font-weight:700}
@@ -32,7 +32,7 @@
 .podium-card.rank{font-size:30px;margin-bottom:4px}
 .podium-card.name{font-size:15px;margin-bottom:4px}
 .podium-card.pts{font-size:13px;opacity:.9}
-.match{background:rgba(15,23,42,0.5);backdrop-filter:blur(6px);padding:16px;border-radius:14px;margin:10px 0;border:1px solid rgba(255,255,255,0.08)}
+.match{background:rgba(15,23,42,0.35);backdrop-filter:blur(2px);padding:16px;border-radius:14px;margin:10px 0;border:1px solid rgba(255,255,255,0.05)}
 .match-header{text-align:center;margin-bottom:12px}
 .match-name{font-size:17px;font-weight:700}
 .score-wrap{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -45,13 +45,14 @@
 .row input{flex:1}
 .qr-wrap{display:flex;justify-content:center;margin:8px 0}
 .qr{padding:10px;background:#fff;border-radius:12px}
+.loading{color:#94a3b8;text-align:center;padding:20px}
 .bracket{display:flex;gap:12px;overflow-x:auto;padding:10px 0}
 .bracket-round{display:flex;flex-direction:column;gap:10px;min-width:200px}
-.bracket-match{background:#334155;padding:10px;border-radius:8px;border:2px solid #475569}
+.bracket-match{background:rgba(15,23,42,0.35);backdrop-filter:blur(2px);padding:10px;border-radius:8px;border:2px solid rgba(255,255,255,0.05);transition:all 0.2s}
 .bracket-match.winner{border:2px solid #22c55e!important;box-shadow:0 0 10px #22c55e66}
-.bracket-player{padding:12px;border-radius:8px;margin:4px 0;background:#1e293b;text-align:center;font-weight:600;min-height:44px;display:flex;align-items:center;justify-content:center}
+.bracket-player{padding:12px;border-radius:8px;margin:4px 0;background:rgba(30,41,59,0.6);text-align:center;font-weight:600;min-height:44px;display:flex;align-items:center;justify-content:center}
 .bracket-player.loser{opacity:0.35;text-decoration:line-through}
-.bracket-player.bye{background:#0f172a;border:1px dashed #475569;color:#22c55e}
+.bracket-player.bye{background:rgba(15,23,42,0.6);border:1px dashed #475569;color:#22c55e}
 .bracket-player.clickable:active{background:#3b82f6;color:#fff}
 </style>
 </head>
@@ -289,7 +290,7 @@ function showPodium(){
   `;
 }
 
-// 單淘汰 - 不動
+// 單淘汰
 async function startSingle(){
   let alive = shuffle(state.players.filter(p=>p.alive).map(p=>p.name));
   const bye = alive.length%2===1? alive.pop() : null;
@@ -347,7 +348,7 @@ function renderBracketMatch(m,rIdx,mIdx){
 }
 
 async function setWinner(rIdx,mIdx,winner){
-  const m = state.bracket;
+  const m = state.bracket[rIdx][mIdx];
   if(m.w) return;
   m.w = winner;
   const nextR = rIdx+1;
